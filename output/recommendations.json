@@ -1,52 +1,62 @@
 [
   {
-    "hotel_name": "喬合大飯店（香城連鎖）",
-    "google_rating": 4.5,
-    "review_count": 1171.0,
-    "hashtags": "#高CP值 #交通便利 #貼心服務",
-    "address": "106台灣臺北市大安區復興南路一段136號",
-    "link": "https://maps.google.com/?cid=2698467207617509047",
-    "image": "https://lh3.googleusercontent.com/places/ANXAkqGfUV4JjdQFH_uCRxo6mGaXRhPQpsLEJz7VXpUb4T0JUT8KkHoFFYKg0Yy3mzGzYeiqVW0co8wIqUfFUeCbj31R-a8bfFfIsxQ=s1600-w1200",
-    "distance_km": 0.13
+    "hotel_name": "台北西門町意舍酒店",
+    "google_rating": 4.4,
+    "review_count": 3007.0,
+    "hashtags": "#西門町核心 #優質活動空間 #設計感旅店 #住宿舒適",
+    "address": "108台灣臺北市萬華區武昌街二段77號",
+    "link": "https://maps.google.com/?cid=8488924342609208958",
+    "image": "https://lh3.googleusercontent.com/places/ANXAkqF8v9Gjq4NzRpqUqhn9IvEMg-_zSCebcGJMPuYiGqnvFVnihlq21_3duc-LWPOHVary2wiUhokU3Yo6_YT291LaVRyjqAQePOs=s1600-w1200",
+    "distance_km": 0.09,
+    "reason": "酒店具備設計感、位於西門町核心且交通便利，並提供豐盛早餐，完全符合文青風格、近捷運和有早餐的需求。",
+    "parsed_location": "西門町"
   },
   {
-    "hotel_name": "艾爾行旅 Hej Taipei",
-    "google_rating": 4.3,
-    "review_count": 594.0,
-    "hashtags": "#東區核心 #交通便利 #高CP值 #貼心款待 #舒適住宿",
-    "address": "106台灣台北市大安区忠孝东路四段87號7樓",
-    "link": "https://maps.google.com/?cid=9503698173932229113",
-    "image": "https://lh3.googleusercontent.com/place-photos/AJRVUZMXvSASqpUd1NGZWvMcjiJ_7SG3rSXgTNEHAI_tbscYlADDqKNoZXUvUtBgPU7U9dTh10Djr8Q9Eb4fjI0AHvkDc0jINfsIOhWFCcS2XRTlRND1qcHGSytXP1ndM_PxD8fcvlegsDh3SUhviFE=s1600-w1200",
-    "distance_km": 0.39
-  },
-  {
-    "hotel_name": "台北碧瑤飯店",
-    "google_rating": 4.2,
-    "review_count": 680.0,
-    "hashtags": "#交通便利 #潔淨舒適 #賓至如歸",
-    "address": "105台灣臺北市松山區八德路二段367號",
-    "link": "https://maps.google.com/?cid=11277660319994699936",
-    "image": "https://lh3.googleusercontent.com/places/ANXAkqEzZNrBBCAgxDsJYeDQIVeBCYDxDtnNg13T1iaJI7FVi-ZFiOgSU6-em4zzQRaZm99hHkWFNCp2QQb3QKRCeEBWmzj-WccZTIo=s1600-w1200",
-    "distance_km": 0.71
-  },
-  {
-    "hotel_name": "方舟旅店 東門館 ARK Hotel Dongmen",
+    "hotel_name": "二十輪旅店西門館 Swiio Hotel Ximen",
     "google_rating": 4.1,
-    "review_count": 672.0,
-    "hashtags": "#鬧中取靜 #交通便利 #休憩好去處",
-    "address": "100台灣臺北市中正區信義路二段255號",
-    "link": "https://maps.google.com/?cid=13816710018669692510",
-    "image": "https://lh3.googleusercontent.com/place-photos/AJRVUZMnF2cabMej7U1Pm98T3hDHHmu40jycQZ2EKX-tpxQoJ0pDBg4KkNampTrQYKmJW_kc-6cOwFHA__w1EZyAYAJAwbFnmIUO6HjE658CQfvknkshOcTrAOwR9VZBS7iGcjk1Sbc0fvJ8Au41Smmrdko1aQ=s1600-w1200",
-    "distance_km": 0.73
+    "review_count": 839.0,
+    "hashtags": "#西門町旁 #簡約設計 #貼心服務",
+    "address": "108台灣臺北市萬華區武昌街二段72號6樓",
+    "link": "https://maps.google.com/?cid=14486720242331802401",
+    "image": "https://lh3.googleusercontent.com/places/ANXAkqGajPTUp48XFBL_lpo0VmW5lzSFhv2p1Qt-5kXM12UNx42Yi1pygCkft_Jvu7j5eym8tubOK6TSqnMwUzhBf3Wjnrb4g0B2Wuw=s1600-w800",
+    "distance_km": 0.01,
+    "reason": "該旅店設計簡約有美術館風格，且位於西門町旁，交通方便，具備濃厚的文青氣息。",
+    "parsed_location": "西門町"
   },
   {
-    "hotel_name": "台北悠趣旅店 (小巨蛋館)",
+    "hotel_name": "日光樂居西門館 Fun Stay Inn Ximen",
+    "google_rating": 4.1,
+    "review_count": 201.0,
+    "hashtags": "#高CP值 #舒適安心 #療癒系旅宿",
+    "address": "6F, No. 72之1號西寧南路萬華區臺北市台灣 108",
+    "link": "https://maps.google.com/?cid=9897333984505860943",
+    "image": "https://lh3.googleusercontent.com/places/ANXAkqGPBlD0UxughS-Sf84tmnu9Fgysud0iTRJo0y6T3w41gMNV5Io8IcSnMqHOBc79N8uxV4b2_vCM8dWSMGkJZmJnc4ZMBkkTS8I=s1600-w1200",
+    "distance_km": 0.16,
+    "reason": "旅店整體色調柔和有質感，營造療癒系空間，位於西門町，符合文青風格與地點便利性。",
+    "parsed_location": "西門町"
+  },
+  {
+    "hotel_name": "台北俞美精品飯店",
+    "google_rating": 3.7,
+    "review_count": 492.0,
+    "hashtags": "#西門町核心 #現代簡約 #貼心服務",
+    "address": "108台灣台北市万华区武昌街二段106號",
+    "link": "https://maps.google.com/?cid=16235484389559484775",
+    "image": "https://lh3.googleusercontent.com/places/ANXAkqG1kMyIXeK02BHOZgFHL6_8dqhnvntud-n6vFMWi7tFDQAprJUyBR03-Sm_5DBLEmitxYjzUrSfAQ02VWyTy-PaIQbDG9ktneA=s1600-w1200",
+    "distance_km": 0.13,
+    "reason": "飯店提供現代簡約風格的客房，鄰近捷運西門站步行約7-10分鐘，地點便利，符合文青風格與交通優勢。",
+    "parsed_location": "西門町"
+  },
+  {
+    "hotel_name": "薆悅酒店西寧館",
     "google_rating": 4.5,
-    "review_count": 1012.0,
-    "hashtags": "#暖心服務 #交通便利 #高CP值 #機能完善",
-    "address": "105台灣臺北市松山區長安東路二段219號 12樓",
-    "link": "https://maps.google.com/?cid=5177023468105876689",
-    "image": "https://lh3.googleusercontent.com/places/ANXAkqESeTtlgrdaPiw5dG1z65EyFKvfwafUQq4wl39GyV1BmdU1bxcpditr7M9rntdJkGBLOew9o-oo3yIQ8VWYYD5FHndKudiu4rQ=s1600-w1200",
-    "distance_km": 0.76
+    "review_count": 1314.0,
+    "hashtags": "#交通便利 #服務暖心 #整潔舒適",
+    "address": "108台灣臺北市萬華區西寧南路107號",
+    "link": "https://maps.google.com/?cid=12170957932697883606",
+    "image": "https://lh3.googleusercontent.com/places/ANXAkqEClMWUVricH6QHXa4X-7uwkz7KJqrMpEuTK1MRW100a4Agd5MRriKPlvyf30YRERQoU6bPgsSy9yvHq3iS2_xlBcchqeLn7Co=s1600-w1200",
+    "distance_km": 0.06,
+    "reason": "飯店地點優越且交通便利，每天提供豐盛早餐，儘管文青風格不明顯，但符合近捷運和有早餐需求。",
+    "parsed_location": "西門町"
   }
 ]

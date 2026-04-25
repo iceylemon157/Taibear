@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import sys
 from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
+from google import genai
+from google.genai import types
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -19,7 +22,10 @@ load_dotenv(ROOT / '.env')
 
 INPUT_PATH = ROOT / 'data' / 'Taipei_Hotel_with_hashtag.json'
 TOP_N = 5
+CANDIDATE_POOL = 30
 EARTH_RADIUS_KM = 6371.0
+
+gemini = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
 
 # --- helpers --------------------------------------------------------------
 
@@ -89,14 +95,126 @@ def recommend(desired_location: str, personal_hashtags: list[str]) -> list[dict]
     return [format_for_spec(h, dist) for _, dist, h in scored[:TOP_N]]
 
 
+# --- LLM-driven recommendation --------------------------------------------
+
+def parse_user_prompt(prompt: str) -> dict:
+    """Extract location and preferences from a free-text user prompt."""
+    instruction = (
+        "從使用者的住宿需求中提取：\n"
+        "- location: 想住的區域、地標或捷運站名稱\n"
+        "- preferences: 使用者在意的特質（用繁體中文，3-6 個短詞）\n\n"
+        f"使用者：{prompt}"
+    )
+    resp = gemini.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=instruction,
+        config=types.GenerateContentConfig(
+            response_mime_type='application/json',
+            response_schema={
+                'type': 'object',
+                'properties': {
+                    'location': {'type': 'string'},
+                    'preferences': {'type': 'array', 'items': {'type': 'string'}},
+                },
+                'required': ['location'],
+            },
+        ),
+    )
+    return json.loads(resp.text)
+
+
+def llm_rerank(user_prompt: str, candidates: list[dict], top_n: int) -> list[dict]:
+    """Send candidates + prompt to Gemini; return top_n picks with reasons."""
+    cand_text = '\n\n'.join(
+        f"[{i}] {h.get('chinese_name') or h.get('HotelName')}\n"
+        f"  Rating: {h.get('rating')} ({h.get('review_count')} reviews)\n"
+        f"  Hashtags: {h.get('hashtags') or '(none)'}\n"
+        f"  Review snippet: {(h.get('review_summary') or '')[:200]}"
+        for i, h in enumerate(candidates)
+    )
+    instruction = (
+        f"使用者需求：{user_prompt}\n\n"
+        f"從以下飯店中挑出最符合使用者需求的 {top_n} 間，"
+        f"並用繁體中文一句話說明為什麼適合。只能挑列表中的飯店，回傳對應的 index。\n\n"
+        f"飯店列表：\n{cand_text}"
+    )
+    resp = gemini.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=instruction,
+        config=types.GenerateContentConfig(
+            response_mime_type='application/json',
+            response_schema={
+                'type': 'array',
+                'items': {
+                    'type': 'object',
+                    'properties': {
+                        'index': {'type': 'integer'},
+                        'reason': {'type': 'string'},
+                    },
+                    'required': ['index', 'reason'],
+                },
+            },
+        ),
+    )
+    picks = json.loads(resp.text)
+    out = []
+    for pick in picks[:top_n]:
+        idx = pick.get('index')
+        if isinstance(idx, int) and 0 <= idx < len(candidates):
+            entry = dict(candidates[idx])
+            entry['_llm_reason'] = pick.get('reason', '')
+            out.append(entry)
+    return out
+
+
+def recommend_from_prompt(user_prompt: str, top_n: int = TOP_N) -> list[dict]:
+    parsed = parse_user_prompt(user_prompt)
+    location = parsed.get('location') or '台北'
+
+    coords = geocode(location)
+    if not coords:
+        raise ValueError(f'could not geocode location: {location!r}')
+    lat0, lng0 = coords
+
+    with open(INPUT_PATH, encoding='utf-8') as f:
+        hotels = json.load(f)
+
+    scored = []
+    for h in hotels:
+        if not h.get('chinese_name'):
+            continue
+        lat, lng = h.get('PositionLat'), h.get('PositionLon')
+        if lat is None or lng is None:
+            continue
+        scored.append((haversine_km(lat0, lng0, lat, lng), h))
+    scored.sort(key=lambda x: x[0])
+    candidates = [h for _, h in scored[:CANDIDATE_POOL]]
+    dist_by_id = {h.get('HotelID'): d for d, h in scored}
+
+    picks = llm_rerank(user_prompt, candidates, top_n=top_n)
+
+    out = []
+    for h in picks:
+        d = dist_by_id.get(h.get('HotelID'), 0.0)
+        formatted = format_for_spec(h, d)
+        formatted['reason'] = h.get('_llm_reason')
+        formatted['parsed_location'] = location
+        out.append(formatted)
+    return out
+
+
+# --- entrypoint -----------------------------------------------------------
+
 OUTPUT_PATH = ROOT / 'output' / 'recommendations.json'
 
 
 if __name__ == '__main__':
-    location = '忠孝復興捷運站'
-    hashtags = ['#文青', '#交通便利', '#夜市']
+    prompt = input('描述你想要的飯店 (Describe your ideal hotel): ').strip()
+    if not prompt:
+        prompt = '我想找忠孝復興附近，文青風格、交通方便的飯店'
+        print(f'(using default prompt: {prompt})')
 
-    recs = recommend(location, hashtags)
+    recs = recommend_from_prompt(prompt)
 
     with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
         json.dump(recs, f, ensure_ascii=False, indent=2)
