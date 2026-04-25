@@ -10,6 +10,9 @@
     "https://www.airbnb.com.tw/*",
     "http://localhost:8001/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

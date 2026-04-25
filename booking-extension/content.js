@@ -4,8 +4,6 @@
  * 頁面載入後主動掃描並存入 chrome.storage
  */
 
-const API_BASE = "http://localhost:8001";
-
 // 台灣執照號碼 pattern，例如「臺北市旅館業登記證第123號」「南投縣民宿358號」
 const LICENSE_RE = /[一-鿿]{2,6}(?:旅館業?|民宿)\w{0,10}[第號]/;
 
@@ -409,26 +407,28 @@ async function scanAndStore() {
 
   chrome.storage.local.set({ taibear_hotel: payload });
 
-  try {
-    const params = new URLSearchParams();
-    if (name)    params.set("name", name);
-    if (gps)     { params.set("lat", gps.lat); params.set("lng", gps.lng); }
-    if (license) params.set("license_number", license);
-    if (address) params.set("address", address);
-    params.set("source", SITE);   // "booking" | "airbnb"
-
-    const res    = await fetch(`${API_BASE}/api/check-hotel?${params}`);
-    const result = await res.json();
-    chrome.storage.local.set({ taibear_result: result });
-    // 浮動卡片的名字用頁面上的（用戶認識的）
-    const displayData = result.legal
-      ? { ...result.hotel, name: payload.name || result.hotel?.name }
-      : payload;
-    showFloat(result.legal ? "safe" : "unsafe", displayData);
-  } catch {
-    chrome.storage.local.set({ taibear_result: null });
-    showFloat("unsafe", payload);
-  }
+  chrome.runtime.sendMessage({
+    action: "checkHotel",
+    data: {
+      name: payload.name,
+      lat: payload.lat,
+      lng: payload.lng,
+      licenseNumber: license,
+      address: payload.address,
+      source: SITE,
+    },
+  }, (response) => {
+    if (response?.success) {
+      chrome.storage.local.set({ taibear_result: response.data });
+      const displayData = response.data.legal
+        ? { ...response.data.hotel, name: payload.name || response.data.hotel?.name }
+        : payload;
+      showFloat(response.data.legal ? "safe" : "unsafe", displayData);
+    } else {
+      chrome.storage.local.set({ taibear_result: null });
+      showFloat("unsafe", payload);
+    }
+  });
 }
 
 // popup 主動問
