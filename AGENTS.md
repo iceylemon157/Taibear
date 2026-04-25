@@ -42,6 +42,60 @@ python -m pytest tests/test_trip_manager_integration.py -v
 
 > **First-time setup**: `cp .env.example .env` and fill in at minimum `POSTGRES_PASSWORD`, `GOOGLE_API_KEY`, `GOOGLE_MAPS_API_KEY`, `YTP_API_KEY`.
 
+## Database Initialisation
+
+PostgreSQL is managed automatically — no manual migration step is needed.
+
+### What happens on `docker compose up --build`
+
+| Order | What runs | Where |
+|-------|-----------|-------|
+| 1 | `Base.metadata.create_all()` | `agent/main.py` `lifespan()` — creates all tables (`hotels`, `saved_hotels`, `users`, `items`, …) via SQLAlchemy `CREATE TABLE IF NOT EXISTS` |
+| 2 | `scripts/seed_demo_users.py` | Dockerfile CMD — imports `agent/db/users/*.json` demo users. Idempotent (`ON CONFLICT DO NOTHING`). |
+| 3 | `python -m db.seed_hotels` | Dockerfile CMD — loads `agent/data/hotels/HotelList.json` (15 585 hotels from the Taiwan Tourism Bureau) into the `hotels` table. Skipped automatically if the table already has rows. |
+
+### Re-seeding hotels from scratch
+
+```bash
+# Connect to the running Postgres container and truncate
+docker compose exec db psql -U ytp -d ytp -c "TRUNCATE hotels CASCADE;"
+
+# Then restart the agent — seed will run again on startup
+docker compose restart trip-planner
+```
+
+### Running the seed manually (outside Docker)
+
+```bash
+cd agent
+cp ../.env .env          # needs DATABASE_URL
+uv sync
+uv run python -m db.seed_hotels
+# or with a custom JSON path:
+uv run python -m db.seed_hotels --path /path/to/HotelList.json
+```
+
+### Data source
+
+`agent/data/hotels/HotelList.json` is the raw JSON export from the
+[Taiwan Tourism Bureau Open Data API](https://www.motc.gov.tw/201506260001/app/govdata_list/view?module=datagov&id=1615&serno=201712260002)
+(15 585 hotels and homestays as of the last export). The file is committed to the
+repository so no external download is required.
+
+### Schema overview
+
+```
+hotels          — read-only reference table (Taiwan Tourism Bureau)
+saved_hotels    — hotels bookmarked via the Chrome extension (no user login required)
+users           — Telegram users
+items           — saved reels / YouTube links per user
+places          — extracted places from reels
+item_places     — many-to-many: items ↔ places
+daily_usage     — per-user LLM call counters
+hidden_spots    — community-submitted hidden gems
+hidden_spot_photos / hidden_spot_comments
+```
+
 ## Service Conventions
 
 ### agent
