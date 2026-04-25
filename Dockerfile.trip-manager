@@ -14,7 +14,6 @@ RUN pip install --no-cache-dir \
 # Copy both trip_manager and realtime_monitor (trip_manager imports realtime_monitor)
 COPY trip_manager/ ./trip_manager/
 COPY realtime_monitor/ ./realtime_monitor/
-COPY weather_auth_code ./weather_auth_code
 
 # trip_manager uses fully-qualified imports (from trip_manager.xxx, from realtime_monitor.xxx)
 # so WORKDIR must be the common parent.

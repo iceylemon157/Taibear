@@ -105,6 +105,23 @@ services:
                 condition: service_healthy
         restart: unless-stopped
 
+    # ── Realtime Monitor service (port 8005) ────────────────────────────────────
+    realtime-monitor:
+        build:
+            context: .
+            dockerfile: Dockerfile.realtime-monitor
+        environment:
+            CWA_API_KEY: ${CWA_API_KEY:-}
+            TDX_CLIENT_ID: ${TDX_CLIENT_ID:-}
+            TDX_CLIENT_SECRET: ${TDX_CLIENT_SECRET:-}
+            CACHE_TTL_SECS: ${CACHE_TTL_SECS:-60}
+            NEARBY_RADIUS_M: ${NEARBY_RADIUS_M:-500}
+        ports:
+            - "8005:8005"
+        networks:
+            - ytp
+        restart: unless-stopped
+
 
 networks:
     ytp:
