@@ -69,15 +69,17 @@ export interface SpotResult {
   [key: string]: unknown;
 }
 
+export interface TspEvaluation {
+  total_transit_time_mins: number;
+  smoothness_score: number;
+}
+
 export interface PlannedRoute {
   route_id: string;
   route_name: string;
   theme: string;
   google_maps_url: string;
-  tsp_evaluation: {
-    total_transit_time_mins: number;
-    smoothness_score: number;
-  };
+  tsp_evaluation: TspEvaluation;
   waypoints: Array<{
     step_order: number;
     name: string;
@@ -110,11 +112,44 @@ export interface Trip {
   status: "planned" | "active" | "disrupted" | "replanning" | "completed" | "cancelled";
   route_name: string;
   theme: string;
+  tsp_evaluation?: TspEvaluation | null;
   google_maps_url: string;
+  original_route_id?: string;
   stops: TripStop[];
   active_alerts: unknown[];
   updated_at?: string;
   created_at?: string;
+}
+
+export interface EnrichReview {
+  author: string;
+  rating: number;
+  text: string;
+  time: string;
+}
+
+export interface EnrichedPlace {
+  place_name: string;
+  place_id: string;
+  folder: string;
+  reviews: {
+    newest: EnrichReview[];
+    most_relevant: EnrichReview[];
+  };
+  captions: string[];
+  photos: string[];
+}
+
+export interface EnrichedRoute {
+  route_id: string;
+  route_name: string;
+  places: EnrichedPlace[];
+}
+
+export interface EnrichResponse {
+  run_id: string;
+  output_dir: string;
+  routes: Record<string, EnrichedRoute>;
 }
 
 export interface SavedHotel {

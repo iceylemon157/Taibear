@@ -39,6 +39,7 @@ services:
             GOOGLE_API_KEY_3: ${GOOGLE_API_KEY_3:-}
             GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
             YTP_API_KEY: ${YTP_API_KEY}
+            USER_PROFILE_API_URL: http://user-profile-manager:8004
         ports:
             - "8001:8000"
         networks:

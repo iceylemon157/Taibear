@@ -4,9 +4,11 @@ import type {
   AuthTokens,
   CheckHotelResponse,
   CreateUserPayload,
+  EnrichResponse,
   ListSavedHotelsResponse,
   LoginPayload,
   PlanResponse,
+  PlannedRoute,
   RegisterPayload,
   SavedHotel,
   SpotResult,
@@ -112,6 +114,13 @@ export const agentService = {
     return apiRequest<PlanResponse>("/api/bff/agent/plan", {
       method: "POST",
       body: payload,
+    });
+  },
+
+  enrich(recommendedRoutes: PlannedRoute[]) {
+    return apiRequest<EnrichResponse>("/api/bff/agent/enrich", {
+      method: "POST",
+      body: { recommended_routes: recommendedRoutes },
     });
   },
 
