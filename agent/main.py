@@ -292,6 +292,7 @@ def list_hidden_spots(db: Session = Depends(get_db)):
 @app.get("/api/check-hotel")
 def check_hotel(
     name: str = "",
+    name_en: str = "",
     license_number: str = "",
     lat: float = 0.0,
     lng: float = 0.0,
@@ -301,6 +302,8 @@ def check_hotel(
     """
     驗證旅宿是否合法（供 Chrome extension 使用，不需 API key）。
     比對順序：執照號碼 → GPS → 中文名稱 → 英文名稱
+    name_en 非空時，英文名稱比對優先於中文名稱比對。
     """
-    return db_check_hotel(db, name=name, license_number=license_number,
+    return db_check_hotel(db, name=name, name_en=name_en,
+                          license_number=license_number,
                           lat=lat, lng=lng, source=source)

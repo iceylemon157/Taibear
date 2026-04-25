@@ -6,9 +6,11 @@ const API_BASE = "http://localhost:8001";
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.action === "checkHotel") {
-    const { name, lat, lng, licenseNumber, address, source } = msg.data;
+    const { name, name_en, lat, lng, licenseNumber, address, source } = msg.data;
     const params = new URLSearchParams();
-    if (name) params.set("name", name);
+    // 英文頁面時優先送 name_en；後端會先比對 name_en 欄位
+    if (name_en) params.set("name_en", name_en);
+    if (name)    params.set("name", name);
     if (lat) params.set("lat", lat);
     if (lng) params.set("lng", lng);
     if (licenseNumber) params.set("license_number", licenseNumber);

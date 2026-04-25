@@ -14,6 +14,22 @@ const SITE = (() => {
   return "unknown";
 })();
 
+/**
+ * 偵測頁面語言：zh 代表中文（zh-tw / zh-cn），en 代表其他語言
+ * Booking.com URL 包含 .zh-tw.html / .en-gb.html 等，也可看 <html lang>
+ */
+function detectLang() {
+  // 1. URL 路徑（booking.com 最可靠：*.zh-tw.html / *.en-gb.html）
+  const urlLang = location.pathname.match(/\.(zh[-_]?(?:tw|cn)?|en[-_]?\w*)\./i)?.[1] || "";
+  if (/^zh/i.test(urlLang)) return "zh";
+  if (/^en/i.test(urlLang)) return "en";
+  // 2. <html lang> 屬性
+  const htmlLang = document.documentElement.lang || "";
+  if (/^zh/i.test(htmlLang)) return "zh";
+  // 3. 預設視為非中文
+  return "en";
+}
+
 // ─── Booking.com ───────────────────────────────────────────
 
 function booking_extractName() {
@@ -332,29 +348,57 @@ function getFloat() {
   return shadow;
 }
 
-function showFloat(state, hotelData) {
+const FLOAT_I18N = {
+  zh: {
+    scanning: "確認中...",
+    scanningBody: "正在比對合法旅宿資料庫...",
+    safe: "合法認證",
+    safMsg: "✓ 已列於觀光署合法旅宿名冊，可安心入住。",
+    unsafe: "風險警示",
+    unsafeMsg: "⚠ 查無合法登記，請點擊圖示查看詳細風險。",
+    unknown: "未知房源",
+    sub: "訂房安全守門員",
+  },
+  en: {
+    scanning: "Checking...",
+    scanningBody: "Verifying against Taiwan legal accommodation database...",
+    safe: "Verified Legal",
+    safMsg: "✓ Listed in Taiwan Tourism Bureau's legal accommodation registry.",
+    unsafe: "Risk Warning",
+    unsafeMsg: "⚠ Not found in legal registry. Tap the icon for details.",
+    unknown: "Unknown property",
+    sub: "Booking Safety Guard",
+  },
+};
+
+function showFloat(state, hotelData, lang = "zh") {
   const shadow = getFloat();
   const card   = shadow.getElementById("card");
   const badge  = shadow.getElementById("tb-badge");
   const body   = shadow.getElementById("tb-body");
+  const t      = FLOAT_I18N[lang] ?? FLOAT_I18N.en;
+
+  // 更新副標題（語言切換時同步）
+  const subEl = shadow.querySelector(".tb-sub");
+  if (subEl) subEl.textContent = t.sub;
 
   if (state === "scanning") {
     badge.className = "tb-badge";
-    badge.textContent = "確認中...";
-    body.innerHTML = `<div class="tb-spinner"></div><p class="tb-scanning">正在比對合法旅宿資料庫...</p>`;
+    badge.textContent = t.scanning;
+    body.innerHTML = `<div class="tb-spinner"></div><p class="tb-scanning">${t.scanningBody}</p>`;
   } else if (state === "safe") {
     badge.className = "tb-badge safe";
-    badge.textContent = "合法認證";
+    badge.textContent = t.safe;
     body.innerHTML = `
       <p class="tb-hotel">${hotelData?.name || ""}</p>
-      <p class="tb-msg safe">✓ 已列於觀光署合法旅宿名冊，可安心入住。</p>
+      <p class="tb-msg safe">${t.safMsg}</p>
     `;
   } else if (state === "unsafe") {
     badge.className = "tb-badge unsafe";
-    badge.textContent = "風險警示";
+    badge.textContent = t.unsafe;
     body.innerHTML = `
-      <p class="tb-hotel">${hotelData?.name || "未知房源"}</p>
-      <p class="tb-msg unsafe">⚠ 查無合法登記，請點擊圖示查看詳細風險。</p>
+      <p class="tb-hotel">${hotelData?.name || t.unknown}</p>
+      <p class="tb-msg unsafe">${t.unsafeMsg}</p>
     `;
   }
 
@@ -386,7 +430,8 @@ async function scanAndStore() {
   // 不是單一房源頁面就不顯示
   if (!name && !gps) return;
 
-  showFloat("scanning");
+  const lang = detectLang(); // "zh" | "en"
+  showFloat("scanning", null, lang);
 
   // Booking.com 的執照號碼段落為動態載入，等待最多 8 秒
   const license = SITE === "booking"
@@ -395,6 +440,7 @@ async function scanAndStore() {
 
   const payload = {
     name,
+    lang,
     lat:           gps?.lat ?? null,
     lng:           gps?.lng ?? null,
     licenseNumber: license,
@@ -410,12 +456,15 @@ async function scanAndStore() {
   chrome.runtime.sendMessage({
     action: "checkHotel",
     data: {
-      name: payload.name,
-      lat: payload.lat,
-      lng: payload.lng,
+      // 英文頁面時以 name_en 欄位送出，讓後端優先比對英文名稱
+      name:          payload.name,
+      name_en:       lang !== "zh" ? payload.name : undefined,
+      lat:           payload.lat,
+      lng:           payload.lng,
       licenseNumber: license,
-      address: payload.address,
-      source: SITE,
+      address:       payload.address,
+      source:        SITE,
+      lang,
     },
   }, (response) => {
     if (response?.success) {
@@ -423,10 +472,10 @@ async function scanAndStore() {
       const displayData = response.data.legal
         ? { ...response.data.hotel, name: payload.name || response.data.hotel?.name }
         : payload;
-      showFloat(response.data.legal ? "safe" : "unsafe", displayData);
+      showFloat(response.data.legal ? "safe" : "unsafe", displayData, lang);
     } else {
       chrome.storage.local.set({ taibear_result: null });
-      showFloat("unsafe", payload);
+      showFloat("unsafe", payload, lang);
     }
   });
 }

@@ -4,8 +4,9 @@ db/hotels.py — Hotel lookup helpers for /api/check-hotel.
 Match priority:
   1. license_number exact match (any source)
   2. GPS bounding-box + haversine ≤ 150 m (booking.com only — GPS is trustworthy)
-  3. Chinese name fuzzy containment (≥ 4 chars)
-  4. English name fuzzy containment (≥ 4 chars)
+  3a. English name fuzzy containment (≥ 4 chars) — when name_en is provided
+  3b. Chinese name fuzzy containment (≥ 4 chars)
+  4.  English name fuzzy containment (≥ 4 chars) — fallback when name_en not provided
 """
 
 from __future__ import annotations
@@ -35,10 +36,24 @@ def _normalize(text: str) -> str:
     return text.strip().lower().replace(" ", "").replace("　", "") if text else ""
 
 
+def _fuzzy_match_by_field(db: Session, search_name: str, field, label: str):
+    """Fuzzy substring containment match against a single Hotel column."""
+    norm = _normalize(search_name)
+    if len(norm) < 4:
+        return None, None
+    all_hotels = db.query(Hotel).filter(field.isnot(None)).all()
+    for h in all_hotels:
+        db_norm = _normalize(getattr(h, field.key))
+        if len(db_norm) >= 4 and (norm in db_norm or db_norm in norm):
+            return h, label
+    return None, None
+
+
 def check_hotel(
     db: Session,
     *,
     name: str = "",
+    name_en: str = "",
     license_number: str = "",
     lat: float = 0.0,
     lng: float = 0.0,
@@ -71,19 +86,22 @@ def check_hotel(
         if best:
             hotel, matched_by = best, "gps"
 
-    # 3 & 4. Name fuzzy match (zh then en)
-    if not hotel and name:
-        norm = _normalize(name)
-        if len(norm) >= 4:
-            for field, label in ((Hotel.name_zh, "name_zh"), (Hotel.name_en, "name_en")):
-                all_hotels = db.query(Hotel).filter(field.isnot(None)).all()
-                for h in all_hotels:
-                    db_norm = _normalize(getattr(h, field.key))
-                    if len(db_norm) >= 4 and (norm in db_norm or db_norm in norm):
-                        hotel, matched_by = h, label
-                        break
-                if hotel:
-                    break
+    # 3. Name fuzzy match
+    # When name_en is provided (English page), try English name first to avoid
+    # false positives from matching transliterated characters in name_zh.
+    if not hotel:
+        name_fields: list[tuple[str, object, str]] = []
+        if name_en:
+            name_fields.append((name_en, Hotel.name_en, "name_en"))
+        if name:
+            name_fields.append((name, Hotel.name_zh, "name_zh"))
+            if not name_en:
+                name_fields.append((name, Hotel.name_en, "name_en"))
+
+        for search_val, field, label in name_fields:
+            hotel, matched_by = _fuzzy_match_by_field(db, search_val, field, label)
+            if hotel:
+                break
 
     if hotel:
         return {

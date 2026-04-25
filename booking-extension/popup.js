@@ -1,6 +1,96 @@
 // ← 上線後換成部署的 API URL
 const API_BASE = "http://localhost:8000";
 
+// ─── i18n ────────────────────────────────────────────────────
+const I18N = {
+  zh: {
+    tagline:          "訂房安全守門員",
+    scanning:         "確認中...",
+    scanningBody:     "正在比對合法旅宿資料庫...",
+    safeBadge:        "合法認證",
+    safeTitle:        "✓　這間旅宿合法有保障",
+    safeDesc:         "已登記於觀光署合法旅宿名冊，可安心入住。",
+    registrationInfo: "登記資訊",
+    btnAdd:           "+ 加入 Taibear，以此安排行程",
+    btnOfficial:      "查看官方登記資料 →",
+    unsafeBadge:      "風險警示",
+    unsafeTitle:      "⚠　查無合法登記",
+    unsafeDesc:       "此房源未列於觀光署合法旅宿名冊，可能為非法業者。",
+    potentialRisks:   "潛在風險",
+    btnLeave:         "離開此頁，找合法替代房源",
+    btnLearn:         "了解非法旅宿風險 →",
+    sourceText:       "資料來源：中央社報導、觀光署旅宿資料庫",
+    unsupported:      "不支援的頁面",
+    unsupportedAddr:  "請前往 Booking.com 或 Airbnb 使用",
+    unknownProperty:  "無法辨識此房源",
+    checks: {
+      license:      "旅館業登記證",
+      fire:         "消防安全設施",
+      insurance:    "投保旅遊責任險",
+      accessible:   "無障礙設施",
+    },
+    risks: {
+      noSafety:     "未經消防、衛生、建築主管機關審查，熱水器通風等安全標準無人把關",
+      noInsurance:  "無強制投保公共意外險義務，旅客發生意外求償無門",
+      noLicense:    "頁面未顯示登記字號，無法核實業者身份，消費糾紛難以追究",
+      noAddress:    "無確切地址，緊急狀況（火災、一氧化碳中毒）難以通報救援",
+      noPhone:      "無業者聯絡電話，改期退費爭議只能透過平台客服，流程冗長",
+      apartment:    "住宅型房源可能位於頂加或窄巷，阻礙逃生動線",
+      privacy:      "個資保護無相關法規約束，訂房資料外洩風險較高",
+    },
+  },
+  en: {
+    tagline:          "Booking Safety Guard",
+    scanning:         "Checking...",
+    scanningBody:     "Verifying against Taiwan legal accommodation database...",
+    safeBadge:        "Verified Legal",
+    safeTitle:        "✓  This property is legally registered",
+    safeDesc:         "Listed in Taiwan Tourism Bureau's legal accommodation registry. Safe to book.",
+    registrationInfo: "Registration Details",
+    btnAdd:           "+ Add to Taibear Itinerary",
+    btnOfficial:      "View Official Registry →",
+    unsafeBadge:      "Risk Warning",
+    unsafeTitle:      "⚠  Not Found in Legal Registry",
+    unsafeDesc:       "This property is not listed in Taiwan Tourism Bureau's legal accommodation registry.",
+    potentialRisks:   "Potential Risks",
+    btnLeave:         "Leave & Find a Legal Alternative",
+    btnLearn:         "Learn About Illegal Rental Risks →",
+    sourceText:       "Source: CNA Reports, Taiwan Tourism Bureau Database",
+    unsupported:      "Page not supported",
+    unsupportedAddr:  "Please open a Booking.com or Airbnb listing",
+    unknownProperty:  "Unable to identify this property",
+    checks: {
+      license:      "Hotel Registration Certificate",
+      fire:         "Fire Safety Compliance",
+      insurance:    "Travel Liability Insurance",
+      accessible:   "Accessibility Facilities",
+    },
+    risks: {
+      noSafety:     "Not inspected for fire, sanitation, or building safety — no regulatory oversight",
+      noInsurance:  "No mandatory public liability insurance; accidents may leave you with no recourse",
+      noLicense:    "No registration number shown — operator identity unverifiable, disputes hard to resolve",
+      noAddress:    "No verified address — emergency services may be unable to locate you",
+      noPhone:      "No operator phone — change/refund disputes require going through platform support",
+      apartment:    "Residential-type listing may have obstructed evacuation routes",
+      privacy:      "No legal data-protection obligations — booking data may be at higher risk of exposure",
+    },
+  },
+};
+
+let currentLang = "zh"; // 預設中文，從 storage 讀取後更新
+
+function t(key) {
+  return (I18N[currentLang] ?? I18N.en)[key] ?? I18N.zh[key] ?? key;
+}
+
+function applyI18n() {
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.getAttribute("data-i18n");
+    const text = t(key);
+    if (text) el.textContent = text;
+  });
+}
+
 // 本地 fallback mock DB（API 還沒跑時用）
 const MOCK_DB = {
   "丰居旅店": {
@@ -21,37 +111,40 @@ function showState(state, hotelData) {
     document.getElementById(id).classList.add("hidden")
   );
 
+  applyI18n();
+
   const badge = document.getElementById("badge");
 
   if (state === "scanning") {
     document.getElementById("state-scanning").classList.remove("hidden");
-    badge.textContent = "確認中...";
+    badge.textContent = t("scanning");
     badge.className = "badge";
   } else if (state === "safe") {
     document.getElementById("state-safe").classList.remove("hidden");
-    badge.textContent = "合法認證";
+    badge.textContent = t("safeBadge");
     badge.className = "badge safe";
     if (hotelData) {
-      document.getElementById("hotel-name-safe").textContent = hotelData.name || "未知房源";
+      document.getElementById("hotel-name-safe").textContent = hotelData.name || t("unknownProperty");
       document.getElementById("hotel-addr-safe").textContent = hotelData.address || "";
       renderChecklist(hotelData);
     }
   } else if (state === "unsafe") {
     document.getElementById("state-unsafe").classList.remove("hidden");
-    badge.textContent = "風險警示";
+    badge.textContent = t("unsafeBadge");
     badge.className = "badge unsafe";
-    document.getElementById("hotel-name-unsafe").textContent = hotelData?.name || "未知房源";
+    document.getElementById("hotel-name-unsafe").textContent = hotelData?.name || t("unknownProperty");
     document.getElementById("hotel-addr-unsafe").textContent = hotelData?.address || "";
     renderRisks(hotelData);
   }
 }
 
 function renderChecklist(hotel) {
+  const c = (I18N[currentLang] ?? I18N.en).checks;
   const checks = [
-    { label: "旅館業登記證", status: hotel.licenseNumber ? "ok" : "warn" },
-    { label: "消防安全設施", status: hotel.hotelClass >= 1 ? "ok" : "warn" },
-    { label: "投保旅遊責任險", status: hotel.hotelClass >= 1 ? "ok" : "warn" },
-    { label: "無障礙設施", status: "warn" },
+    { label: c.license,    status: hotel.licenseNumber ? "ok" : "warn" },
+    { label: c.fire,       status: hotel.hotelClass >= 1 ? "ok" : "warn" },
+    { label: c.insurance,  status: hotel.hotelClass >= 1 ? "ok" : "warn" },
+    { label: c.accessible, status: "warn" },
   ];
   const container = document.getElementById("checklist");
   container.innerHTML = checks.map(c => `
@@ -67,51 +160,30 @@ function renderChecklist(hotel) {
  * hotelData = 從 booking.com 頁面抓到的原始資料
  */
 function assessRisks(hotelData) {
+  const r = (I18N[currentLang] ?? I18N.en).risks;
   const risks = [];
 
-  // 核心風險（未在觀光署名冊必定缺這些保障）
-  risks.push({
-    level: "high",
-    text: "未經消防、衛生、建築主管機關審查，熱水器通風等安全標準無人把關",
-  });
-  risks.push({
-    level: "high",
-    text: "無強制投保公共意外險義務，旅客發生意外求償無門",
-  });
+  risks.push({ level: "high",   text: r.noSafety });
+  risks.push({ level: "high",   text: r.noInsurance });
 
   if (!hotelData?.licenseNumber) {
-    risks.push({
-      level: "high",
-      text: "頁面未顯示登記字號，無法核實業者身份，消費糾紛難以追究",
-    });
+    risks.push({ level: "high", text: r.noLicense });
   }
 
   if (!hotelData?.address) {
-    risks.push({
-      level: "high",
-      text: "無確切地址，緊急狀況（火災、一氧化碳中毒）難以通報救援",
-    });
+    risks.push({ level: "high", text: r.noAddress });
   }
 
   if (!hotelData?.phone) {
-    risks.push({
-      level: "medium",
-      text: "無業者聯絡電話，改期退費爭議只能透過平台客服，流程冗長",
-    });
+    risks.push({ level: "medium", text: r.noPhone });
   }
 
   const type = hotelData?.propertyType || "";
   if (type && /公寓|apartment|民宅|住宅/i.test(type)) {
-    risks.push({
-      level: "medium",
-      text: "住宅型房源可能位於頂加或窄巷，阻礙逃生動線",
-    });
+    risks.push({ level: "medium", text: r.apartment });
   }
 
-  risks.push({
-    level: "low",
-    text: "個資保護無相關法規約束，訂房資料外洩風險較高",
-  });
+  risks.push({ level: "low", text: r.privacy });
 
   return risks;
 }
@@ -133,6 +205,10 @@ function localCheck(name) {
 
 async function checkHotel(hotelPayload) {
   const { name, lat, lng, licenseNumber, address } = hotelPayload;
+  if (hotelPayload.lang) {
+    currentLang = hotelPayload.lang === "zh" ? "zh" : "en";
+    applyI18n();
+  }
 
   // 1. 先試 API
   try {
@@ -173,7 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!isSupportedSite) {
       setTimeout(() =>
-        showState("unsafe", { name: "不支援的頁面", address: "請前往 Booking.com 或 Airbnb 使用" })
+        showState("unsafe", { name: t("unsupported"), address: t("unsupportedAddr") })
       , 600);
       return;
     }
@@ -182,6 +258,13 @@ document.addEventListener("DOMContentLoaded", () => {
     chrome.storage.local.get(["taibear_hotel", "taibear_result"], async (data) => {
       const cached = data.taibear_hotel;
       const cachedResult = data.taibear_result;
+
+      // 從快取設定語言
+      if (cached?.lang) {
+        currentLang = cached.lang === "zh" ? "zh" : "en";
+        applyI18n();
+      }
+
       const fresh = cached && (Date.now() - cached.scannedAt) < 30000; // 30秒內算新鮮
 
       if (fresh && cachedResult !== undefined) {
@@ -194,7 +277,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } else if (cached.name) {
           await checkHotel(cached);
         } else {
-          showState("unsafe", { name: "無法辨識此房源", address: "" });
+          showState("unsafe", { name: t("unknownProperty"), address: "" });
         }
         return;
       }
@@ -203,9 +286,13 @@ document.addEventListener("DOMContentLoaded", () => {
       setTimeout(() => {
         chrome.tabs.sendMessage(tab.id, { action: "getHotelData" }, async (res) => {
           if (res?.hotel) {
+            if (res.hotel.lang) {
+              currentLang = res.hotel.lang === "zh" ? "zh" : "en";
+              applyI18n();
+            }
             await checkHotel(res.hotel);
           } else {
-            showState("unsafe", { name: "無法辨識此房源", address: "" });
+            showState("unsafe", { name: t("unknownProperty"), address: "" });
           }
         });
       }, 800);
