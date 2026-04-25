@@ -28,7 +28,7 @@ import config
 from agent.enricher import enrich_routes
 from agent.gemini_client import is_quota_error
 from agent.models import UserPreference, load_user
-from db.engine import get_session
+from db.engine import get_session, init_db
 from db.hidden_spots import (
     add_comment, add_photo, create_hidden_spot,
     get_all_spots, get_spot_by_place_id, serialize_spot,
@@ -64,6 +64,7 @@ def get_db():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()   # 確保所有 SQLAlchemy model 對應的表都存在（CREATE TABLE IF NOT EXISTS）
     yield
 
 
