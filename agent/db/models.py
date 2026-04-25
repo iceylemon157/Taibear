@@ -118,3 +118,18 @@ class HiddenSpotComment(Base):
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
 
     spot = relationship("HiddenSpot", back_populates="comments")
+
+
+class Hotel(Base):
+    __tablename__ = "hotels"
+
+    hotel_id = Column(String(50), primary_key=True)
+    name_en = Column(String(255))
+    name_zh = Column(String(255))
+    license_number = Column(String(100), index=True)
+    city = Column(String(50))
+    address = Column(String(500))
+    lat = Column(Float)
+    lng = Column(Float)
+    service_status = Column(SmallInteger, default=1)
+    hotel_class = Column(String(50))
