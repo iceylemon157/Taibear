@@ -18,6 +18,7 @@ wheels/
 first_round/
 Hotel-json/
 spec.md
+hotel.ipynb
 
 # macOS
 .DS_Store
