@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Taibear 守門員",
+  "version": "1.0.0",
+  "description": "自動偵測訂房網站的房源是否合法，守護你的旅遊安全",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "https://www.booking.com/*",
+    "https://www.airbnb.com/*",
+    "https://www.airbnb.com.tw/*",
+    "http://localhost:8001/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.booking.com/*",
+        "https://www.airbnb.com/*",
+        "https://www.airbnb.com.tw/*"
+      ],
+      "js": ["content.js"]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*.png"],
+      "matches": ["https://www.booking.com/*", "https://www.airbnb.com/*", "https://www.airbnb.com.tw/*"]
+    }
+  ]
+}

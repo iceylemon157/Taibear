@@ -17,6 +17,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Form, HTTPException, Security, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -32,6 +33,7 @@ from db.hidden_spots import (
     add_comment, add_photo, create_hidden_spot,
     get_all_spots, get_spot_by_place_id, serialize_spot,
 )
+from db.hotels import check_hotel as db_check_hotel
 from db.user_loader import load_preference_from_db
 from agent.planner import run_planner
 from agent.preprocessor import preprocess
@@ -69,6 +71,13 @@ app = FastAPI(
     description="台北一日遊規劃 Agent API — 從關鍵字搜尋到路線一站完成",
     version="0.4.0",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
 )
 
 
@@ -275,3 +284,23 @@ def list_hidden_spots(db: Session = Depends(get_db)):
         )
         for s in spots
     ]
+
+
+# ── Hotel Legality Check (Chrome Extension) ──────────────────────────────────
+
+
+@app.get("/api/check-hotel")
+def check_hotel(
+    name: str = "",
+    license_number: str = "",
+    lat: float = 0.0,
+    lng: float = 0.0,
+    source: str = "booking",
+    db: Session = Depends(get_db),
+):
+    """
+    驗證旅宿是否合法（供 Chrome extension 使用，不需 API key）。
+    比對順序：執照號碼 → GPS → 中文名稱 → 英文名稱
+    """
+    return db_check_hotel(db, name=name, license_number=license_number,
+                          lat=lat, lng=lng, source=source)
