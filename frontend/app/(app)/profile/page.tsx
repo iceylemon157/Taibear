@@ -69,7 +69,7 @@ export default function ProfilePage() {
               ))}
             </div>
             <button
-              onClick={() => router.push("/onboarding")}
+              onClick={() => router.push("/onboarding/quiz")}
               className="mt-3 text-[12px]"
               style={{ color: "#999", background: "none", border: "none", cursor: "pointer", padding: 0 }}
             >
