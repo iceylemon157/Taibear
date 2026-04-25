@@ -133,3 +133,31 @@ class Hotel(Base):
     lng = Column(Float)
     service_status = Column(SmallInteger, default=1)
     hotel_class = Column(String(50))
+
+    saved = relationship("SavedHotel", back_populates="hotel")
+
+
+class SavedHotel(Base):
+    """
+    使用者透過 Chrome extension 收藏的旅宿。
+    不與 Telegram user 綁定（extension 無 login）。
+    同一個 source_url 只存一筆；重複收藏時更新 saved_at。
+    """
+    __tablename__ = "saved_hotels"
+    __table_args__ = (
+        UniqueConstraint("source", "source_url", name="uq_saved_hotel_source_url"),
+    )
+
+    id             = Column(Integer, primary_key=True, autoincrement=True)
+    # FK 指向合法旅館清單；非合法旅宿則為 NULL
+    hotel_id       = Column(String(50), ForeignKey("hotels.hotel_id"), nullable=True, index=True)
+    display_name   = Column(String(255), nullable=False)   # 頁面上看到的名稱
+    address        = Column(String(500))
+    lat            = Column(Float)
+    lng            = Column(Float)
+    license_number = Column(String(100))                   # 頁面抓到的執照字號
+    source         = Column(String(20))                    # "booking" | "airbnb"
+    source_url     = Column(Text)                          # 原始訂房頁 URL
+    saved_at       = Column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    hotel = relationship("Hotel", back_populates="saved")

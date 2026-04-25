@@ -34,6 +34,7 @@ from db.hidden_spots import (
     get_all_spots, get_spot_by_place_id, serialize_spot,
 )
 from db.hotels import check_hotel as db_check_hotel
+from db.saved_hotels import list_saved_hotels, upsert_saved_hotel
 from db.user_loader import load_preference_from_db
 from agent.planner import run_planner
 from agent.preprocessor import preprocess
@@ -286,7 +287,18 @@ def list_hidden_spots(db: Session = Depends(get_db)):
     ]
 
 
-# ── Hotel Legality Check (Chrome Extension) ──────────────────────────────────
+# ── Chrome Extension: Hotel Legality Check + Save ────────────────────────────
+
+
+class SaveHotelRequest(BaseModel):
+    display_name:   str
+    address:        Optional[str]   = None
+    lat:            Optional[float] = None
+    lng:            Optional[float] = None
+    license_number: Optional[str]   = None
+    source:         str             = "booking"
+    source_url:     Optional[str]   = None
+    hotel_id:       Optional[str]   = None   # hotels.hotel_id，合法旅宿才有
 
 
 @app.get("/api/check-hotel")
@@ -307,3 +319,48 @@ def check_hotel(
     return db_check_hotel(db, name=name, name_en=name_en,
                           license_number=license_number,
                           lat=lat, lng=lng, source=source)
+
+
+@app.post("/api/save-hotel")
+def save_hotel(req: SaveHotelRequest, db: Session = Depends(get_db)):
+    """
+    收藏旅宿（供 Chrome extension 使用，不需 API key）。
+    同一個 source + source_url 重複呼叫時更新 saved_at，不重複新增。
+    """
+    row, created = upsert_saved_hotel(
+        db,
+        display_name=req.display_name,
+        address=req.address,
+        lat=req.lat,
+        lng=req.lng,
+        license_number=req.license_number,
+        source=req.source,
+        source_url=req.source_url,
+        hotel_id=req.hotel_id,
+    )
+    return {"saved": True, "created": created, "id": row.id}
+
+
+@app.get("/api/saved-hotels")
+def get_saved_hotels(db: Session = Depends(get_db)):
+    """
+    回傳所有收藏的旅宿（供 Chrome extension 使用，不需 API key）。
+    """
+    rows = list_saved_hotels(db)
+    return {
+        "hotels": [
+            {
+                "id":             r.id,
+                "display_name":   r.display_name,
+                "address":        r.address,
+                "lat":            r.lat,
+                "lng":            r.lng,
+                "license_number": r.license_number,
+                "source":         r.source,
+                "source_url":     r.source_url,
+                "hotel_id":       r.hotel_id,
+                "saved_at":       r.saved_at.isoformat() if r.saved_at else None,
+            }
+            for r in rows
+        ]
+    }

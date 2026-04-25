@@ -448,6 +448,7 @@ async function scanAndStore() {
     phone,
     propertyType,
     source:        SITE,
+    source_url:    location.href,
     scannedAt:     Date.now(),
   };
 

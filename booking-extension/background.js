@@ -23,4 +23,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true; // 表示非同步回應
   }
+
+  if (msg.action === "saveHotel") {
+    const { display_name, address, lat, lng, license_number, source, source_url, hotel_id } = msg.data;
+    fetch(`${API_BASE}/api/save-hotel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ display_name, address, lat, lng, license_number, source, source_url, hotel_id }),
+    })
+      .then(res => res.json())
+      .then(data => sendResponse({ success: true, data }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
 });

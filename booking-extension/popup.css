@@ -294,6 +294,13 @@ body {
   margin-bottom: 14px;
 }
 
+.btn.primary.saved,
+.btn.primary:disabled {
+  background: #4a7c2e;
+  cursor: default;
+  opacity: 1;
+}
+
 /* Source */
 .source-text {
   font-size: 12px;

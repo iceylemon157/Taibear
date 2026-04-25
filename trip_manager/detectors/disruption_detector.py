@@ -16,7 +16,7 @@ from ..models.trip import Trip, TripStop, StopStatus
 from ..models.disruption import DisruptionAlert, AlertType, Severity
 
 from realtime_monitor.client import RealtimeClient
-from realtime_monitor.models import WeatherData, TrafficData
+from realtime_monitor.models import WeatherData
 
 
 class DisruptionDetector:
@@ -72,7 +72,7 @@ class DisruptionDetector:
 
         return alerts
 
-    def check_traffic(self, trip: Trip, traffic: TrafficData | None = None) -> list[DisruptionAlert]:
+    def check_traffic(self, trip: Trip, traffic: None = None) -> list[DisruptionAlert]:
         """
         Check whether traffic near upcoming stops is congested.
 

@@ -12,6 +12,7 @@ const I18N = {
     safeDesc:         "已登記於觀光署合法旅宿名冊，可安心入住。",
     registrationInfo: "登記資訊",
     btnAdd:           "+ 加入 Taibear，以此安排行程",
+    btnAddSaved:      "已收藏 ✓",
     btnOfficial:      "查看官方登記資料 →",
     unsafeBadge:      "風險警示",
     unsafeTitle:      "⚠　查無合法登記",
@@ -48,6 +49,7 @@ const I18N = {
     safeDesc:         "Listed in Taiwan Tourism Bureau's legal accommodation registry. Safe to book.",
     registrationInfo: "Registration Details",
     btnAdd:           "+ Add to Taibear Itinerary",
+    btnAddSaved:      "Saved ✓",
     btnOfficial:      "View Official Registry →",
     unsafeBadge:      "Risk Warning",
     unsafeTitle:      "⚠  Not Found in Legal Registry",
@@ -301,20 +303,51 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 按鈕
   document.getElementById("btn-add").addEventListener("click", () => {
-    chrome.storage.local.get("taibear_hotel", (data) => {
-      const hotel = data.taibear_hotel;
-      const params = new URLSearchParams();
-      if (hotel?.name)    params.set("hotelName", hotel.name);
-      if (hotel?.lat)     params.set("lat", hotel.lat);
-      if (hotel?.lng)     params.set("lng", hotel.lng);
-      if (hotel?.address) params.set("address", hotel.address);
-      // ← 換成平台的網址
-      chrome.tabs.create({ url: `https://taibear.app/itinerary?${params}` });
+    const btn = document.getElementById("btn-add");
+    btn.disabled = true;
+    btn.textContent = "...";
+
+    chrome.storage.local.get(["taibear_hotel", "taibear_result"], (data) => {
+      const hotel  = data.taibear_hotel;
+      const result = data.taibear_result;
+
+      if (!hotel) {
+        btn.disabled = false;
+        btn.textContent = t("btnAdd");
+        return;
+      }
+
+      // hotel_id 只有在合法旅宿才有（來自 check-hotel 回傳）
+      const hotel_id = result?.legal ? (result.hotel?.hotel_id ?? null) : null;
+
+      chrome.runtime.sendMessage({
+        action: "saveHotel",
+        data: {
+          display_name:   hotel.name,
+          address:        hotel.address  ?? null,
+          lat:            hotel.lat      ?? null,
+          lng:            hotel.lng      ?? null,
+          license_number: hotel.licenseNumber ?? null,
+          source:         hotel.source   ?? "booking",
+          source_url:     hotel.source_url ?? null,
+          hotel_id,
+        },
+      }, (response) => {
+        if (response?.success) {
+          btn.textContent = t("btnAddSaved");
+          btn.classList.add("saved");
+        } else {
+          btn.disabled = false;
+          btn.textContent = t("btnAdd");
+        }
+      });
     });
   });
 
   document.getElementById("btn-official").addEventListener("click", () => {
-    chrome.tabs.create({ url: "https://www.travelweb.com.tw/" });
+    chrome.tabs.create({
+      url: "https://www.motc.gov.tw/201506260001/app/govdata_list/view?module=datagov&id=1615&serno=201712260002",
+    });
   });
 
   document.getElementById("btn-leave").addEventListener("click", () => {
