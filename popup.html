@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Taibear 守門員</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="popup" id="popup">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="bear-logo"><img src="icons/icon48.png" alt="Taibear" /></div>
+      <div class="header-text">
+        <span class="brand">Taibear</span>
+        <span class="tagline">訂房安全守門員</span>
+      </div>
+      <div class="badge" id="badge">確認中...</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- State 1: Scanning -->
+    <div class="state" id="state-scanning">
+      <div class="scanning-body">
+        <div class="spinner"></div>
+        <p class="scanning-text">正在比對合法旅宿資料庫...</p>
+      </div>
+    </div>
+
+    <!-- State 2: Safe -->
+    <div class="state hidden" id="state-safe">
+      <div class="hotel-info">
+        <p class="hotel-name" id="hotel-name-safe">丰居旅店 · 北車館</p>
+        <p class="hotel-addr" id="hotel-addr-safe">台北市中正區重慶南路一段60號</p>
+      </div>
+      <div class="result-card safe">
+        <p class="result-title">✓　這間旅宿合法有保障</p>
+        <p class="result-desc">已登記於觀光署合法旅宿名冊，可安心入住。</p>
+      </div>
+      <p class="section-label">登記資訊</p>
+      <div class="checklist" id="checklist">
+        <div class="check-item"><span class="check-icon green">✓</span><span>旅館業登記證</span></div>
+        <div class="check-item"><span class="check-icon green">✓</span><span>消防安全設施</span></div>
+        <div class="check-item"><span class="check-icon green">✓</span><span>投保旅遊責任險</span></div>
+        <div class="check-item"><span class="check-icon warn">!</span><span>暫無無障礙設施資訊</span></div>
+      </div>
+      <div class="divider"></div>
+      <button class="btn primary" id="btn-add">+ 加入 Taibear，以此安排行程</button>
+      <button class="btn secondary" id="btn-official">查看官方登記資料 →</button>
+    </div>
+
+    <!-- State 3: Unsafe -->
+    <div class="state hidden" id="state-unsafe">
+      <div class="hotel-info">
+        <p class="hotel-name" id="hotel-name-unsafe">某民宿 · 信義區</p>
+        <p class="hotel-addr" id="hotel-addr-unsafe">台北市信義區某路123號</p>
+      </div>
+      <div class="result-card unsafe">
+        <p class="result-title">⚠　查無合法登記</p>
+        <p class="result-desc">此房源未列於觀光署合法旅宿名冊，可能為非法業者。</p>
+      </div>
+      <p class="section-label">潛在風險</p>
+      <ul class="risk-list" id="risk-list">
+        <!-- 由 JS 動態產生 -->
+      </ul>
+      <div class="divider"></div>
+      <button class="btn danger" id="btn-leave">離開此頁，找合法替代房源</button>
+      <button class="btn secondary" id="btn-learn">了解非法旅宿風險 →</button>
+      <p class="source-text">資料來源：中央社報導、觀光署旅宿資料庫</p>
+    </div>
+
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
