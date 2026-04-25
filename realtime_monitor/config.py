@@ -40,3 +40,7 @@ TDX_BASE_URL: str = "https://tdx.transportdata.tw/api/basic"
 
 # ── Timeouts ──────────────────────────────────────────────────────────────────
 REQUEST_TIMEOUT_SECS: int = int(os.getenv("REALTIME_TIMEOUT", "10"))
+
+# ── Spatial search radius ─────────────────────────────────────────────────────
+# Radius (in metres) used for TDX nearby() spatial filter queries.
+NEARBY_RADIUS_M: int = int(os.getenv("NEARBY_RADIUS_M", "500"))
