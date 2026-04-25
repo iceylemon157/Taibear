@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import { ApiError } from "@/services/api/client";
+import { agentService, dedupeSavedHotels } from "@/services/api/services";
+import type { SavedHotel } from "@/services/api/types";
 
 // ── Extension view data ──────────────────────────────────────────────────────
 
@@ -222,9 +226,112 @@ function ExtensionView({ onSwitch }: { onSwitch: () => void }) {
 function HotelsView({ onSwitch }: { onSwitch: () => void }) {
   const [tags, setTags] = useState(STYLE_TAGS);
   const [prompt, setPrompt] = useState("");
+  const [savedHotels, setSavedHotels] = useState<SavedHotel[]>([]);
+  const [loadingSaved, setLoadingSaved] = useState(false);
+  const [syncingHotelName, setSyncingHotelName] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   const toggleTag = (i: number) =>
     setTags((prev) => prev.map((t, idx) => (idx === i ? { ...t, active: !t.active } : t)));
+
+  const activeTagLabels = useMemo(
+    () => tags.filter((tag) => tag.active).map((tag) => tag.label),
+    [tags]
+  );
+
+  async function refreshSavedHotels() {
+    setLoadingSaved(true);
+    try {
+      const response = await agentService.listSavedHotels();
+      setSavedHotels(dedupeSavedHotels(response.hotels || []));
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setErrorMessage(error.message);
+      } else {
+        setErrorMessage("讀取收藏住宿失敗，請稍後再試。");
+      }
+    } finally {
+      setLoadingSaved(false);
+    }
+  }
+
+  async function handleCheckPrompt() {
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    const query = prompt.trim();
+    if (!query) {
+      setErrorMessage("請先輸入想查詢的旅宿名稱或條件。");
+      return;
+    }
+
+    try {
+      const result = await agentService.checkHotel({
+        name: query,
+        source: "booking",
+      });
+
+      if (result.legal && result.hotel) {
+        const hotelName =
+          typeof result.hotel === "object" && result.hotel !== null && "name" in result.hotel
+            ? String((result.hotel as { name: unknown }).name)
+            : query;
+        setSuccessMessage(`查詢結果：${hotelName} 為合法旅宿。`);
+      } else {
+        const warning =
+          typeof result.warning === "string" && result.warning.length > 0
+            ? result.warning
+            : "查無合法資料，請再確認旅宿名稱或改用收藏功能。";
+        setErrorMessage(warning);
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setErrorMessage(error.message);
+      } else {
+        setErrorMessage("合法性查詢失敗，請稍後再試。");
+      }
+    }
+  }
+
+  async function handleSaveHotel(hotel: (typeof HOTELS)[number]) {
+    setErrorMessage("");
+    setSuccessMessage("");
+    setSyncingHotelName(hotel.name);
+
+    try {
+      const legalResult = await agentService.checkHotel({
+        name: hotel.name,
+        source: "booking",
+      });
+
+      await agentService.saveHotel({
+        display_name: hotel.name,
+        address: hotel.area,
+        source: "booking",
+        source_url: `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(hotel.name)}`,
+        hotel_id:
+          legalResult.legal && legalResult.hotel && typeof legalResult.hotel === "object" && "hotel_id" in legalResult.hotel
+            ? String((legalResult.hotel as { hotel_id: unknown }).hotel_id)
+            : undefined,
+      });
+
+      setSuccessMessage(`已加入收藏：${hotel.name}`);
+      await refreshSavedHotels();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setErrorMessage(error.message);
+      } else {
+        setErrorMessage("收藏失敗，請稍後再試。");
+      }
+    } finally {
+      setSyncingHotelName("");
+    }
+  }
+
+  useEffect(() => {
+    void refreshSavedHotels();
+  }, []);
 
   return (
     <div className="min-h-screen" style={{ background: "#f5f5f5" }}>
@@ -240,6 +347,7 @@ function HotelsView({ onSwitch }: { onSwitch: () => void }) {
           </p>
           <div className="flex gap-4 mt-8">
             <button
+              onClick={handleCheckPrompt}
               className="h-[52px] px-8 rounded-[13px] text-white text-[16px] font-semibold"
               style={{ background: "#3abdff" }}
             >
@@ -317,11 +425,27 @@ function HotelsView({ onSwitch }: { onSwitch: () => void }) {
           </button>
         </div>
         <button
+          onClick={handleCheckPrompt}
           className="w-full h-[56px] rounded-[16px] text-white text-[17px] font-semibold mt-4"
           style={{ background: "linear-gradient(to right, #3abdff, #9cd8ed, #fef3da)" }}
         >
-          ✦ AI 個人化規劃行程 →
+          ✦ 檢查輸入條件是否合法旅宿 →
         </button>
+
+        {errorMessage ? (
+          <p className="text-[13px] mt-3" style={{ color: "#d9534f" }}>
+            {errorMessage}
+          </p>
+        ) : null}
+        {successMessage ? (
+          <p className="text-[13px] mt-3" style={{ color: "#2ebf59" }}>
+            {successMessage}
+          </p>
+        ) : null}
+
+        <p className="text-[12px] mt-3" style={{ color: "#999" }}>
+          已選擇偏好：{activeTagLabels.join("、")}
+        </p>
       </section>
 
       <section className="bg-white px-[72px] py-12">
@@ -376,10 +500,12 @@ function HotelsView({ onSwitch }: { onSwitch: () => void }) {
                   在 Google Maps 查看 →
                 </button>
                 <button
+                  onClick={() => void handleSaveHotel(hotel)}
+                  disabled={syncingHotelName === hotel.name}
                   className="w-[236px] h-[33px] rounded-[10px] text-[13px] font-normal border-[1.5px]"
                   style={{ borderColor: "#3abdff", color: "#3abdff" }}
                 >
-                  加入我的行程
+                  {syncingHotelName === hotel.name ? "儲存中..." : "加入我的行程"}
                 </button>
               </div>
             </div>
@@ -388,6 +514,37 @@ function HotelsView({ onSwitch }: { onSwitch: () => void }) {
         <p className="text-[13px] mt-6" style={{ color: "#999" }}>
           以上房源均已通過 Taibear 合法資料庫比對 ✓ 資料每日更新
         </p>
+
+        <div className="mt-10 border-t pt-8" style={{ borderColor: "#efefef" }}>
+          <h3 className="text-[18px] font-semibold text-[#141414]">你的已收藏住宿</h3>
+          <p className="text-[13px] mt-1" style={{ color: "#999" }}>
+            與 Agent `/api/saved-hotels` 即時同步
+          </p>
+
+          {loadingSaved ? (
+            <p className="mt-4 text-[13px]" style={{ color: "#999" }}>讀取收藏住宿中...</p>
+          ) : savedHotels.length === 0 ? (
+            <p className="mt-4 text-[13px]" style={{ color: "#999" }}>尚未收藏旅宿。</p>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              {savedHotels.map((hotel) => (
+                <div
+                  key={`${hotel.source}-${hotel.id}`}
+                  className="rounded-[14px] border px-4 py-3"
+                  style={{ borderColor: "#e5e5e5" }}
+                >
+                  <p className="text-[14px] font-semibold text-[#141414]">{hotel.display_name}</p>
+                  <p className="text-[12px] mt-1" style={{ color: "#777" }}>
+                    {hotel.address || "地址未提供"}
+                  </p>
+                  <p className="text-[11px] mt-1" style={{ color: "#999" }}>
+                    source: {hotel.source} · saved_at: {hotel.saved_at || "-"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );
