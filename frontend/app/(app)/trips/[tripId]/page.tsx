@@ -1,9 +1,11 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { agentService, tripsService } from "@/services/api/services";
 import type { EnrichResponse, EnrichedPlace, Trip, TripStop } from "@/services/api/types";
+import { getSession } from "@/services/auth/session";
+import { clearCurrentTripId, setCurrentTripId } from "@/services/trips/currentTrip";
 
 const CONIC_BG = "conic-gradient(from 90deg at 50% 50%, rgb(254,243,218) -26%, rgb(208,239,255) 13%, rgb(231,241,237) 33%, rgb(251,243,221) 52%, rgb(253,243,219) 67%, rgb(254,243,218) 74%, rgb(208,239,255) 113%)";
 
@@ -262,6 +264,7 @@ function TransportPanel({ fromStop, toStop }: { fromStop: TripStop; toStop: Trip
 export default function TripResultPage({ params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = use(params);
   const router = useRouter();
+  const session = useMemo(() => getSession(), []);
 
   const [trip, setTrip] = useState<Trip | null>(null);
   const [enrichData, setEnrichData] = useState<EnrichResponse | null>(null);
@@ -291,11 +294,24 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
     setMobileTab("detail");
   };
 
+  const handleReplan = () => {
+    const userId = session?.userId || trip?.user_id;
+    if (userId) {
+      clearCurrentTripId(userId);
+    }
+    router.push("/trips?mode=plan");
+  };
+
   useEffect(() => {
     async function load() {
       try {
         const tripData = await tripsService.getTrip(tripId);
         setTrip(tripData);
+        if (session?.userId) {
+          setCurrentTripId(session.userId, tripData.trip_id);
+        } else if (tripData.user_id) {
+          setCurrentTripId(tripData.user_id, tripData.trip_id);
+        }
         setLoading(false);
         setTimeout(() => setPanelVisible(true), 120);
         agentService.enrich([tripToPlannedRoute(tripData)])
@@ -307,7 +323,7 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
     }
     void load();
     return () => { if (transitionRef.current) clearTimeout(transitionRef.current); };
-  }, [tripId]);
+  }, [session?.userId, tripId]);
 
   if (loading) {
     return (
@@ -369,6 +385,13 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
           <p className="text-[15px] font-semibold text-[#141414] truncate">
             🌸 {trip.route_name || `行程 ${trip.trip_id}`}
           </p>
+          <button
+            onClick={handleReplan}
+            className="ml-auto h-[34px] px-4 rounded-[10px] text-white text-[12px] font-semibold"
+            style={{ background: "#3abdff" }}
+          >
+            重新規劃
+          </button>
         </div>
 
         {/* Day tabs */}
@@ -505,6 +528,13 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
           <p className="text-[14px] font-semibold text-[#141414] truncate flex-1">
             🌸 {trip.route_name || `行程 ${trip.trip_id}`}
           </p>
+          <button
+            onClick={handleReplan}
+            className="h-[30px] px-3 rounded-[10px] text-white text-[11px] font-semibold"
+            style={{ background: "#3abdff" }}
+          >
+            重新規劃
+          </button>
         </div>
 
         {/* Mobile tabs */}

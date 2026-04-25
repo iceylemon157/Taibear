@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { ApiError } from "@/services/api/client";
 import { agentService, tripsService, usersService } from "@/services/api/services";
@@ -13,6 +13,7 @@ import type {
   UserProfile,
 } from "@/services/api/types";
 import { getSession } from "@/services/auth/session";
+import { getCurrentTripId, setCurrentTripId } from "@/services/trips/currentTrip";
 
 const STYLE_TAGS = [
   { label: "🍜 美食探索", active: true },
@@ -245,6 +246,7 @@ const STATUS_MESSAGES = ["搜尋最佳景點...", "規劃路線中...", "整理�
 
 export default function TripsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [prompt, setPrompt] = useState("");
   const [tags, setTags] = useState(STYLE_TAGS);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -308,6 +310,14 @@ export default function TripsPage() {
 
   const toggleTag = (i: number) =>
     setTags((prev) => prev.map((t, idx) => (idx === i ? { ...t, active: !t.active } : t)));
+
+  const openTripDetail = (tripId: string) => {
+    if (session?.userId) {
+      setCurrentTripId(session.userId, tripId);
+    }
+    setSelectedTripId(tripId);
+    router.push(`/trips/${tripId}`);
+  };
 
   async function refreshTrips() {
     if (!session?.userId) {
@@ -419,6 +429,7 @@ export default function TripsPage() {
         chosen_route: chosenRoute,
       });
 
+      setCurrentTripId(session.userId, trip.trip_id);
       router.push(`/trips/${trip.trip_id}`);
     } catch (error) {
       if (error instanceof ApiError) {
@@ -478,6 +489,23 @@ export default function TripsPage() {
       cancelled = true;
     };
   }, [session?.userId]);
+
+  useEffect(() => {
+    if (!session?.userId) {
+      return;
+    }
+
+    if (searchParams.get("mode") === "plan") {
+      return;
+    }
+
+    const currentTripId = getCurrentTripId(session.userId);
+    if (!currentTripId) {
+      return;
+    }
+
+    router.replace(`/trips/${currentTripId}`);
+  }, [router, searchParams, session?.userId]);
 
   useEffect(() => {
     void refreshTrips();
@@ -544,7 +572,7 @@ export default function TripsPage() {
             trip={ongoingTrip}
             loading={loadingTrips}
             onRefresh={refreshTrips}
-            onOpen={ongoingTrip ? () => router.push(`/trips/${ongoingTrip.trip_id}`) : undefined}
+            onOpen={ongoingTrip ? () => openTripDetail(ongoingTrip.trip_id) : undefined}
             selected={Boolean(ongoingTrip && selectedTripId === ongoingTrip.trip_id)}
           />
           <p className="text-[16px] font-semibold text-black">✦ 精選推薦行程</p>
@@ -554,7 +582,7 @@ export default function TripsPage() {
                 key={`${card.title}-${card.desc}`}
                 {...card}
                 selected={Boolean(card.tripId && selectedTripId === card.tripId)}
-                onClick={card.tripId ? () => router.push(`/trips/${card.tripId}`) : undefined}
+                onClick={card.tripId ? () => openTripDetail(card.tripId!) : undefined}
               />
             ))}
           </div>
@@ -603,7 +631,7 @@ export default function TripsPage() {
           trip={ongoingTrip}
           loading={loadingTrips}
           onRefresh={refreshTrips}
-          onOpen={ongoingTrip ? () => router.push(`/trips/${ongoingTrip.trip_id}`) : undefined}
+          onOpen={ongoingTrip ? () => openTripDetail(ongoingTrip.trip_id) : undefined}
           selected={Boolean(ongoingTrip && selectedTripId === ongoingTrip.trip_id)}
         />
 
@@ -614,7 +642,7 @@ export default function TripsPage() {
               key={`${card.title}-${card.desc}`}
               {...card}
               selected={Boolean(card.tripId && selectedTripId === card.tripId)}
-              onClick={card.tripId ? () => router.push(`/trips/${card.tripId}`) : undefined}
+              onClick={card.tripId ? () => openTripDetail(card.tripId!) : undefined}
             />
           ))}
         </div>
