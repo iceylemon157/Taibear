@@ -1,0 +1,129 @@
+{
+  "recommended_routes": [
+    {
+      "route_id": "route_A",
+      "route_name": "療癒文青花園漫遊",
+      "theme": "結合花園、貓咪咖啡與文創空間，完美貼合您的所有偏好。",
+      "tsp_evaluation": {
+        "total_transit_time_mins": 79,
+        "smoothness_score": 1
+      },
+      "google_maps_url": "https://www.google.com/maps/dir/?api=1&destination=華山1914文創園區&waypoints=臺北玫瑰園%7C転運棧-貓咪中途咖啡廳%7C青良書店",
+      "waypoints": [
+        {
+          "step_order": 1,
+          "name": "臺北玫瑰園",
+          "place_id": "ChIJ5X1aDFGpQjQROYTjlSR0GAQ",
+          "location": {"lat": 25.0693501, "lng": 121.5287696},
+          "suggested_time": "09:00 - 10:30",
+          "reasoning": "滿足您對『花園』和『玫瑰』的偏好，作為一日遊的清新開端。"
+        },
+        {
+          "step_order": 2,
+          "name": "転運棧-貓咪中途咖啡廳",
+          "place_id": "ChIJEWrqwAupQjQRmVkNTPMperU",
+          "location": {"lat": 25.0532138, "lng": 121.513859},
+          "suggested_time": "11:30 - 13:30",
+          "reasoning": "體驗『貓咪友善』的『療癒系』空間，享受『安靜』的『咖啡廳』時光。"
+        },
+        {
+          "step_order": 3,
+          "name": "青良書店",
+          "place_id": "ChIJbxZcI3upQjQRw7T6jN5BexU",
+          "location": {"lat": 25.0443187, "lng": 121.529337},
+          "suggested_time": "14:00 - 16:00",
+          "reasoning": "為喜愛『閱讀空間』的您提供一個『文青』氣息濃厚的場所，沉浸書香。"
+        },
+        {
+          "step_order": 4,
+          "name": "華山1914文創園區",
+          "place_id": "ChIJbSTgI2WpQjQRcVwWB2cnyfE",
+          "location": {"lat": 25.0440698, "lng": 121.5293583},
+          "suggested_time": "16:30 - 19:00",
+          "reasoning": "作為『文青』必訪的文創園區，有豐富的藝文展覽和特色小店，符合『預算中等』。"
+        }
+      ]
+    },
+    {
+      "route_id": "route_B",
+      "route_name": "大稻埕慢活文青行",
+      "theme": "以大稻埕為核心，感受台北老城的復古與文藝慢活氛圍。",
+      "tsp_evaluation": {
+        "total_transit_time_mins": 31,
+        "smoothness_score": 0.278
+      },
+      "google_maps_url": "https://www.google.com/maps/dir/?api=1&destination=FUFUCatCafe&waypoints=里Ura%7C大稻埕",
+      "waypoints": [
+        {
+          "step_order": 1,
+          "name": "里Ura",
+          "place_id": "ChIJQ65j_bypQjQRozjMus1IkFQ",
+          "location": {"lat": 25.0597689, "lng": 121.509508},
+          "suggested_time": "11:00 - 13:00",
+          "reasoning": "位於大稻埕的特色老宅咖啡廳，完美體現『文青』與『安靜』的『老城慢活』風格。"
+        },
+        {
+          "step_order": 2,
+          "name": "大稻埕",
+          "place_id": "ChIJIWBDRhGpQjQRvziv5q6gr20",
+          "location": {"lat": 25.0561135, "lng": 121.5074769},
+          "suggested_time": "13:30 - 16:00",
+          "reasoning": "漫步在充滿歷史感的街區，感受獨特的『老城』氛圍與復古情懷。"
+        },
+        {
+          "step_order": 3,
+          "name": "FUFUCatCafe",
+          "place_id": "ChIJp4XAHX6rQjQR9sjrYtvV564",
+          "location": {"lat": 25.0447196, "lng": 121.5072979},
+          "suggested_time": "16:30 - 18:30",
+          "reasoning": "在『貓咪友善』的『咖啡廳』享受悠閒，為『療癒系』旅程劃下句點。"
+        }
+      ]
+    },
+    {
+      "route_id": "route_C",
+      "route_name": "室內文藝漫遊備案",
+      "theme": "精選多樣化的室內文藝景點，即使雨天也能享受台北的文青氣息。",
+      "tsp_evaluation": {
+        "total_transit_time_mins": 89,
+        "smoothness_score": 1
+      },
+      "google_maps_url": "https://www.google.com/maps/dir/?api=1&destination=ARKI GALERIA 築空間&waypoints=松山文創園區%7C共樂 Gung Lok%7C青春漢堡台北店",
+      "waypoints": [
+        {
+          "step_order": 1,
+          "name": "松山文創園區",
+          "place_id": "ChIJO0vOI7-rQjQR3Pl9_4cPK8g",
+          "location": {"lat": 25.0438366, "lng": 121.5606383},
+          "suggested_time": "09:00 - 12:00",
+          "reasoning": "台北重要的『文創』園區，擁有豐富的室內展覽與設計店，非常適合『雨天備案』。"
+        },
+        {
+          "step_order": 2,
+          "name": "共樂 Gung Lok",
+          "place_id": "ChIJZxHWZiCrQjQRAdt0K4KjLmw",
+          "location": {"lat": 25.0382251, "lng": 121.5498394},
+          "suggested_time": "12:30 - 14:00",
+          "reasoning": "一家有特色的『咖啡廳』，提供港式點心，可在室內享受『安靜』的午茶時光。"
+        },
+        {
+          "step_order": 3,
+          "name": "青春漢堡台北店",
+          "place_id": "ChIJcfB5sMarQjQROm72E-2Hlfo",
+          "location": {"lat": 25.031723, "lng": 121.5601526},
+          "suggested_time": "14:30 - 16:30",
+          "reasoning": "『文青』風格的漢堡店，提供舒適的室內用餐環境，適合輕鬆的下午茶或早晚餐。"
+        },
+        {
+          "step_order": 4,
+          "name": "ARKI GALERIA 築空間",
+          "place_id": "ChIJgTbxDwasQjQRt1fqnk7l8ek",
+          "location": {"lat": 25.0776139, "lng": 121.547962},
+          "suggested_time": "17:00 - 18:30",
+          "reasoning": "提供『文藝』氛圍的下午茶體驗，是個享受『安靜』與藝術的『室內』空間。"
+        }
+      ]
+    }
+  ]
+}
+

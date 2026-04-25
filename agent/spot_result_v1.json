@@ -1,0 +1,177 @@
+{
+    "query": "台北美術文青",
+    "user_preference": {
+        "user_id": "alice",
+        "display_name": "Alice Chen",
+        "selected_tags": [
+            "文青",
+            "預算中等",
+            "咖啡廳",
+            "安靜",
+            "花園",
+            "玫瑰",
+            "療癒系",
+            "貓咪友善",
+            "閱讀空間"
+        ],
+        "reels": []
+    },
+    "top_results": [
+        {
+            "rank": 1,
+            "title": "台北文青一日遊完整攻略：文創園區、特色書店、咖啡廳巡禮",
+            "url": "https://lunaexplorer.tw/chapter/1467",
+            "relevance_score": 0.98,
+            "summary": "這篇攻略為規劃台北文青一日遊提供了詳細的資訊，涵蓋華山1914文創園區、松山文創園區等必訪 景點，以及許多特色書店和咖啡廳。對喜歡文藝氣息、希望體驗道地台北生活的使用者來說，這是一個很好的參考指南 ，能幫助規劃出充實的文青行程。",
+            "extracted_places": [
+                {
+                    "name": "華山1914文創園區",
+                    "context": "台北文青必訪的文創園區，有許多藝文展覽和特色小店。"
+                },
+                {
+                    "name": "松山文創園區",
+                    "context": "另一個台北重要的文創園區，可以感受台北的藝文氛圍。"
+                }
+            ],
+            "tags": ["文青", "台北", "文創", "一日遊", "咖啡廳"]
+        },
+        {
+            "rank": 2,
+            "title": "台北文青餐廳指南：精選最具氛圍的老宅咖啡館、餐酒館與文創小店 – 奇...",
+            "url": "https://chisun-design.com/guide-to-hipster-cafes-and-restaurants-in-taipei/",
+            "relevance_score": 0.95,
+            "summary": "這篇文章推薦了台北多間充滿氛圍的老宅咖啡館和文創小店，像是大稻埕的里Ura，結合咖啡、古物和植栽，打造出獨特的文青空間。無論是喜歡老屋、咖啡還是文創的旅人，都能從中找到心儀的選擇。",
+            "extracted_places": [
+                {
+                    "name": "里Ura",
+                    "context": "位於大稻埕的特色老宅咖啡廳，結合咖啡、古物和植栽。"
+                },
+                {
+                    "name": "大稻埕",
+                    "context": "台北充滿歷史感和文藝氣息的區域。"
+                }
+            ],
+            "tags": ["文青", "台北", "美食", "咖啡廳", "大稻埕"]
+        },
+        {
+            "rank": 3,
+            "title": "【台北】私藏必去的15間美好咖啡廳‧偷渡超過100間wifi...",
+            "url": "https://vilo92.pixnet.net/blog/posts/9429955862",
+            "relevance_score": 0.92,
+            "summary": "這篇部落格分享了 15 間台北私藏的美好咖啡廳，包含 CAFE de GEAR 和 共樂 Gung Lok 等，有些地點還提供 Wi-Fi，適合喜歡安靜閱讀或工作的使用者。文章提供了不少文青咖啡廳的選擇，讓使用者可以發掘更多台 北的咖啡廳新去處。",
+            "extracted_places": [
+                {
+                    "name": "CAFE de GEAR",
+                    "context": "位於中正區的明亮咖啡廳，有綠意和老物件的特色。"
+                },
+                {
+                    "name": "共樂 Gung Lok",
+                    "context": "位於中山區的港式雞蛋仔和咖啡廳。"
+                }
+            ],
+            "tags": ["台北", "咖啡廳", "文青", "閱讀空間", "Wi-Fi"]
+        },
+        {
+            "rank": 4,
+            "title": "濕濕黏黏的午後可以去哪？台北室內文青備案好去處，下雨天也能質感玩",
+            "url": "https://www.marieclaire.com.tw/lifestyle/travel/65250",
+            "relevance_score": 0.88,
+            "summary": "這篇文章提供了台北許多適合下雨天的室內文青景點，包含 MAJI 集食行樂等，能讓使用者在雨天 也能體驗台北的文藝氣息。對於喜歡在室內享受文青氛圍的使用者來說，是一個不錯的選擇。",
+            "extracted_places": [
+                {
+                    "name": "MAJI 集食行樂",
+                    "context": "台北室內文青景點之一，適合在雨天前往。"
+                }
+            ],
+            "tags": ["台北", "文青", "室內", "雨天", "景點"]
+        },
+        {
+            "rank": 5,
+            "title": "台北網美咖啡廳｜IG...",
+            "url": "https://smallchin.com/62247/",
+            "relevance_score": 0.85,
+            "summary": "這篇文章介紹了台北多間適合拍照打卡的網美咖啡廳，例如克勞斯咖啡店。對於喜歡拍照和享受美 氣氛的使用者來說，是一個不錯的參考，能找到兼具美觀和咖啡品質的咖啡廳。",
+            "extracted_places": [
+                {
+                    "name": "Cross Caf’e 克勞斯咖啡店",
+                    "context": "台北東區的咖啡廳，以其美氣氛聞名。"
+                }
+            ],
+            "tags": ["台北", "咖啡廳", "網美", "拍照", "東區"]
+        },
+        {
+            "rank": 6,
+            "title": "Aoharu Burger... | 遇見天使~Angela",
+            "url": "https://angela51.com/aoharu-burger/",
+            "relevance_score": 0.82,
+            "summary": "青春漢堡台北店延續了田樂系的文青風格，位於世貿對面小巷裡的老屋，有種秘境咖啡廳的氣氛， 非常受年輕人喜愛。喜歡特殊風格咖啡廳的使用者可以參考這篇，體驗不一樣的台北風味。",
+            "extracted_places": [
+                {
+                    "name": "青春漢堡台北店",
+                    "context": "位於世貿對面的文青風格漢堡店。"
+                }
+            ],
+            "tags": ["台北", "漢堡", "咖啡廳", "文青", "世貿"]
+        },
+        {
+            "rank": 7,
+            "title": "『台北美食』低調奢華文藝的偽文青下午茶之約-ARKI GALERIA....",
+            "url": "https://mikago.tw/post-31385382/",
+            "relevance_score": 0.78,
+            "summary": "這篇文章推薦了ARKI GALERIA 築空間，提供低調奢華的文藝下午茶體驗。雖然被形容為「偽文青」，但對於喜歡安靜、優雅氛圍的使用者來說，也是個不錯的選擇。",
+            "extracted_places": [
+                {
+                    "name": "ARKI GALERIA 築空間",
+                    "context": "台北的下午茶地點，提供文藝氛圍。"
+                }
+            ],
+            "tags": ["台北", "下午茶", "美食", "文青", "咖啡廳"]
+        },
+        {
+            "rank": 8,
+            "title": "雲林土庫特色文青咖啡廳Koka庫咖，必點單品手沖咖啡@吳大妮",
+            "url": "https://wudani.com/koka/",
+            "relevance_score": 0.75,
+            "summary": "雖然地點在雲林土庫，但這篇文章介紹了文青咖啡廳Koka庫咖，提供了單品手沖咖啡的資訊，對喜 歡咖啡和文青風格的使用者來說，可以作為旅程的選擇。",
+            "extracted_places": [
+                {
+                    "name": "Koka庫咖",
+                    "context": "雲林土庫的文青風格咖啡廳，提供手沖咖啡。"
+                }
+            ],
+            "tags": ["雲林", "咖啡廳", "文青", "手沖", "單品"]
+        },
+        {
+            "rank": 9,
+            "title": "台北華山文創Pop up store",
+            "url": "https://www.facebook.com/groups/916610159908216/posts/1273615547541007/",
+            "relevance_score": 0.7,
+            "summary": "這篇 Facebook 貼文分享了華山文創園區周邊的行程，包含青良書店、富錦樹概念館等。喜歡文創 園區和周邊特色小店的使用者，可以參考此篇，規劃自己的行程。",
+            "extracted_places": [
+                {
+                    "name": "華山文創園區",
+                    "context": "台北重要的文創園區。"
+                },
+                {
+                    "name": "青良書店",
+                    "context": "華山文創園區周邊的特色書店。"
+                }
+            ],
+            "tags": ["台北", "文創", "華山", "書店"]
+        },
+        {
+            "rank": 10,
+            "title": "台北中山站。共樂咖啡店 | 設計對話",
+            "url": "https://www.designedialogue.com/cafe-gung-lok-taipei/",
+            "relevance_score": 0.68,
+            "summary": "介紹了位於中山站的共樂咖啡店，這間店面的風格設計獨特，對喜歡不同風格咖啡廳的人來說是不 錯的選擇。",
+            "extracted_places": [
+                {
+                    "name": "共樂咖啡店",
+                    "context": "位於中山站的特色咖啡廳。"
+                }
+            ],
+            "tags": ["台北", "咖啡廳", "設計"]
+        }
+    ]
+}

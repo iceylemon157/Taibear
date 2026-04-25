@@ -1,0 +1,53 @@
+{
+  "trip_id": "3428cbf1016f",
+  "user_id": "alice",
+  "trip_date": "2025-08-01",
+  "status": "disrupted",
+  "route_name": "療癒文青花園漫遊",
+  "theme": "...",
+  "tsp_evaluation": {
+    "total_transit_time_mins": 79,
+    "smoothness_score": 1.0
+  },
+  "google_maps_url": "https://...",
+  "original_route_id": "route_A",
+  "stops": [
+    {
+      "stop_id": "3428cbf1016f_stop_1",
+      "step_order": 1,
+      "name": "臺北玫瑰園",
+      "place_id": "ChIJ...",
+      "location": {
+        "lat": 25.069,
+        "lng": 121.528
+      },
+      "suggested_time": "09:00 - 10:30",
+      "reasoning": "行程開端...",
+      "status": "active"
+    }
+  ],
+  "active_alerts": [
+    {
+      "alert_id": "a5cf9097fc",
+      "alert_type": "heavy_rain",
+      "severity": "high",
+      "affected_stop_ids": [
+        "3428cbf1016f_stop_1"
+      ],
+      "message": "中山區 降雨機率 80%，天氣狀況：短暫陣雨或雷雨。建議改為室內行程。",
+      "raw_data": {
+        "district": "中山區",
+        "rain_prob_pct": 80,
+        "description": "短暫陣雨或雷雨",
+        "temperature_low": 22,
+        "temperature_high": 25,
+        "comfort": "舒適",
+        "forecast_start": "2026-04-06T03:00:00+08:00",
+        "forecast_end": "2026-04-06T06:00:00+08:00"
+      },
+      "detected_at": "2026-04-05T20:05:12.585923+00:00"
+    }
+  ],
+  "created_at": "2026-04-05T14:05:39.357249+00:00",
+  "updated_at": "2026-04-05T20:05:12.592927+00:00"
+}
