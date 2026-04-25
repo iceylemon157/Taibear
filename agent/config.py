@@ -57,6 +57,10 @@ GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
 
 YTP_API_KEY: str = os.getenv("YTP_API_KEY", "")
 
+# User Profile Manager base URL (used to resolve user preference for /search
+# when local JSON profile files are not present).
+USER_PROFILE_API_URL: str = os.getenv("USER_PROFILE_API_URL", "http://localhost:8004")
+
 # ── Search Pipeline ────────────────────────────────────────────────────────────
 
 # Gemini Search Grounding 一次萃取的景點數量上限

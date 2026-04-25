@@ -10,15 +10,18 @@ Endpoints:
 
 import asyncio
 import json
+import logging
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Form, HTTPException, Security, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
+import httpx
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -45,6 +48,7 @@ from schemas import (
 )
 
 api_key_header = APIKeyHeader(name="X-API-Key")
+logger = logging.getLogger(__name__)
 
 
 def verify_api_key(key: str = Security(api_key_header)) -> None:
@@ -103,6 +107,41 @@ class EnrichResponse(BaseModel):
     routes: dict
 
 
+async def _load_preference_from_user_profile_api(user_id: str) -> UserPreference | None:
+    """Load user preference from User Profile Manager by user_id (email)."""
+    base_url = (config.USER_PROFILE_API_URL or "").rstrip("/")
+    if not base_url:
+        return None
+
+    url = f"{base_url}/users/{quote(user_id, safe='')}"
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(url)
+    except Exception as exc:
+        logger.warning("Failed to fetch profile from user-profile service: %s", exc)
+        return None
+
+    if resp.status_code == 404:
+        return None
+
+    if resp.status_code >= 400:
+        logger.warning(
+            "User-profile service returned %s for user '%s': %s",
+            resp.status_code,
+            user_id,
+            resp.text,
+        )
+        return None
+
+    try:
+        payload = resp.json()
+        return UserPreference.model_validate(payload)
+    except Exception as exc:
+        logger.warning("Invalid profile payload from user-profile service: %s", exc)
+        return None
+
+
 # ── Endpoints ───────────────────────────────────────────────────────────────────
 
 
@@ -124,7 +163,18 @@ async def search(request: SearchRequest):
         if request.tg_user_id is not None:
             preference = load_preference_from_db(request.tg_user_id)
         elif request.user_id:
-            preference, preference_path = load_user(request.user_id, config.USERS_DIR)
+            try:
+                preference, preference_path = load_user(request.user_id, config.USERS_DIR)
+            except FileNotFoundError:
+                # Frontend login now uses User Profile Manager, so user preference files
+                # may not exist under agent/db/users. Fallback to profile service.
+                preference = await _load_preference_from_user_profile_api(request.user_id)
+                if preference is None:
+                    # Keep request usable even if no stored preference is found.
+                    preference = UserPreference(
+                        user_id=request.user_id,
+                        display_name=request.user_id,
+                    )
 
         if request.tags:
             merged = list(dict.fromkeys(preference.selected_tags + request.tags))
