@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAppStore } from "@/lib/store/appStore";
 
 const CONIC = "conic-gradient(from 90deg at 50% 50%, rgb(254,243,218) -26%, rgb(208,239,255) 13%, rgb(231,241,237) 33%, rgb(251,243,221) 52%, rgb(253,243,219) 67%, rgb(254,243,218) 74%, rgb(208,239,255) 113%)";
 
@@ -14,6 +16,9 @@ const MENU_ITEMS = [
 ];
 
 export default function ProfilePage() {
+  const router = useRouter();
+  const userPreferences = useAppStore((s) => s.userPreferences);
+
   return (
     <div className="min-h-screen" style={{ background: CONIC }}>
       {/* Avatar + name section */}
@@ -40,6 +45,39 @@ export default function ProfilePage() {
           ))}
         </div>
       </div>
+
+      {/* Preferences section */}
+      {userPreferences && userPreferences.selectedTags.length > 0 && (
+        <div className="mx-4 md:mx-auto md:max-w-[600px] mb-4">
+          <div
+            className="bg-white rounded-[20px] px-5 py-4"
+            style={{ boxShadow: "0px 4px 16px rgba(0,0,0,0.06)" }}
+          >
+            <p className="text-[14px] font-semibold text-[#141414] mb-3">我的偏好</p>
+            <div className="flex flex-wrap gap-2">
+              {userPreferences.selectedTags.map((tag, i) => (
+                <span
+                  key={tag}
+                  className="px-3 py-1 rounded-[20px] text-[13px] font-medium"
+                  style={{
+                    background: i % 2 === 0 ? "rgba(58,189,255,0.12)" : "rgba(255,210,106,0.2)",
+                    color: i % 2 === 0 ? "#3abdff" : "#9a6e00",
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+            <button
+              onClick={() => router.push("/onboarding")}
+              className="mt-3 text-[12px]"
+              style={{ color: "#999", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              重新設定偏好 ›
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Menu list */}
       <div className="mx-4 md:mx-auto md:max-w-[600px] bg-white rounded-[20px] overflow-hidden mb-6"

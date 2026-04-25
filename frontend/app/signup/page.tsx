@@ -64,7 +64,7 @@ export default function SignUpPage() {
         accessTokenExpiresAt: Date.now() + result.expires_in * 1000,
         refreshTokenExpiresAt: Date.now() + result.refresh_expires_in * 1000,
       });
-      router.push("/trips");
+      router.push("/onboarding");
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.status === 400 && /already exists/i.test(error.message)) {
