@@ -1,6 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import { ApiError } from "@/services/api/client";
+import { agentService, tripsService } from "@/services/api/services";
+import type { Trip } from "@/services/api/types";
+import { getSession } from "@/services/auth/session";
 
 const STYLE_TAGS = [
   { label: "🍜 美食探索", active: true },
@@ -12,7 +17,7 @@ const STYLE_TAGS = [
   { label: "🌙 夜生活", active: false },
 ];
 
-const REC_CARDS = [
+const FALLBACK_REC_CARDS = [
   { emoji: "🏮", title: "大稻埕文化之旅", desc: "迪化街 · 霞海城隍廟 · 永樂市場", duration: "半天", tags: ["文化", "美食"] },
   { emoji: "🌿", title: "陽明山一日遊", desc: "冷水坑 · 擎天崗 · 花鐘", duration: "一天", tags: ["自然", "健行"] },
   { emoji: "🌃", title: "信義區夜生活", desc: "101 · 微風廣場 · 象山", duration: "傍晚", tags: ["打卡", "夜景"] },
@@ -21,12 +26,165 @@ const REC_CARDS = [
 
 const CONIC_BG = "conic-gradient(from 90deg at 50% 50%, rgb(254,243,218) -26%, rgb(208,239,255) 13%, rgb(231,241,237) 33%, rgb(251,243,221) 52%, rgb(253,243,219) 67%, rgb(254,243,218) 74%, rgb(208,239,255) 113%)";
 
+const ACTIVE_TRIP_STATUSES = new Set(["active", "planned", "disrupted", "replanning"]);
+
+function cleanTagLabel(label: string): string {
+  const cleaned = label.replace(/^[^\s]+\s*/u, "").trim();
+  return cleaned || label;
+}
+
+function formatDateLabel(dateLike: string | undefined): string {
+  if (!dateLike) {
+    return "未指定";
+  }
+  const date = new Date(dateLike);
+  if (Number.isNaN(date.getTime())) {
+    return dateLike;
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function toDurationLabel(stopCount: number): string {
+  if (stopCount >= 6) {
+    return "一天";
+  }
+  if (stopCount >= 4) {
+    return "半天";
+  }
+  return "輕旅";
+}
+
+function tripToRecCard(trip: Trip) {
+  return {
+    emoji: "🧭",
+    title: trip.route_name || `行程 ${trip.trip_id}`,
+    desc: `${trip.theme || "城市探索"} · ${trip.stops.length} 個景點`,
+    duration: toDurationLabel(trip.stops.length),
+    tags: [trip.theme || "旅遊", trip.status],
+  };
+}
+
 export default function TripsPage() {
   const [prompt, setPrompt] = useState("");
   const [tags, setTags] = useState(STYLE_TAGS);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loadingTrips, setLoadingTrips] = useState(false);
+  const [planning, setPlanning] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  const session = useMemo(() => getSession(), []);
+
+  const selectedTagNames = useMemo(
+    () => tags.filter((tag) => tag.active).map((tag) => cleanTagLabel(tag.label)),
+    [tags]
+  );
+
+  const ongoingTrip = useMemo(
+    () => trips.find((trip) => ACTIVE_TRIP_STATUSES.has(trip.status)),
+    [trips]
+  );
+
+  const recCards = useMemo(
+    () => (trips.length > 0 ? trips.slice(0, 4).map(tripToRecCard) : FALLBACK_REC_CARDS),
+    [trips]
+  );
 
   const toggleTag = (i: number) =>
     setTags((prev) => prev.map((t, idx) => (idx === i ? { ...t, active: !t.active } : t)));
+
+  async function refreshTrips() {
+    if (!session?.userId) {
+      return;
+    }
+
+    setLoadingTrips(true);
+    setErrorMessage("");
+
+    try {
+      const summary = await tripsService.listUserTripIds(session.userId);
+      const details = await Promise.all(
+        summary.trip_ids.map(async (tripId) => {
+          try {
+            return await tripsService.getTrip(tripId);
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const validTrips = details
+        .filter((trip): trip is Trip => trip !== null)
+        .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
+
+      setTrips(validTrips);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setErrorMessage(error.message);
+      } else {
+        setErrorMessage("讀取行程失敗，請稍後再試。");
+      }
+    } finally {
+      setLoadingTrips(false);
+    }
+  }
+
+  async function handleCreateTrip() {
+    if (!session?.userId) {
+      setErrorMessage("請先登入再建立行程。");
+      return;
+    }
+
+    const query = prompt.trim();
+    if (!query) {
+      setErrorMessage("請先輸入旅程想法。");
+      return;
+    }
+
+    setPlanning(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const searchResult = await agentService.search({
+        query,
+        user_id: session.userId,
+        tags: selectedTagNames,
+      });
+
+      const plan = await agentService.plan(searchResult);
+      const chosenRoute = plan.recommended_routes?.[0];
+
+      if (!chosenRoute) {
+        throw new Error("AI 尚未產生可建立的行程。");
+      }
+
+      const tripDate = new Date().toISOString().slice(0, 10);
+      const trip = await tripsService.createTrip({
+        user_id: session.userId,
+        trip_date: tripDate,
+        chosen_route: chosenRoute,
+      });
+
+      setSuccessMessage(`已建立行程：${trip.route_name || trip.trip_id}`);
+      setPrompt("");
+      await refreshTrips();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setErrorMessage(error.message);
+      } else if (error instanceof Error) {
+        setErrorMessage(error.message);
+      } else {
+        setErrorMessage("建立行程失敗，請稍後再試。");
+      }
+    } finally {
+      setPlanning(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshTrips();
+  }, [session?.userId]);
 
   return (
     <div className="min-h-screen" style={{ background: CONIC_BG }}>
@@ -47,9 +205,20 @@ export default function TripsPage() {
             <TagRow tags={tags} onToggle={toggleTag} />
           </div>
 
-          <PromptBox value={prompt} onChange={setPrompt} />
+          <PromptBox value={prompt} onChange={setPrompt} onSubmit={handleCreateTrip} disabled={planning} />
 
-          <AIPlanButton />
+          <AIPlanButton onClick={handleCreateTrip} loading={planning} disabled={planning} />
+
+          {errorMessage ? (
+            <p className="text-[13px]" style={{ color: "#d9534f" }}>
+              {errorMessage}
+            </p>
+          ) : null}
+          {successMessage ? (
+            <p className="text-[13px]" style={{ color: "#2ebf59" }}>
+              {successMessage}
+            </p>
+          ) : null}
 
           <p className="text-[14px] text-center mt-auto pt-4" style={{ color: "#999" }}>© 2026 Taibear</p>
         </div>
@@ -59,10 +228,10 @@ export default function TripsPage() {
 
         {/* Right column */}
         <div className="w-[452px] px-8 py-12 flex flex-col gap-5 flex-shrink-0">
-          <OngoingTripCard />
+          <OngoingTripCard trip={ongoingTrip} loading={loadingTrips} onRefresh={refreshTrips} />
           <p className="text-[16px] font-semibold text-black">✦ 精選推薦行程</p>
           <div className="grid grid-cols-2 gap-4">
-            {REC_CARDS.map((card) => <RecCard key={card.title} {...card} />)}
+            {recCards.map((card) => <RecCard key={`${card.title}-${card.desc}`} {...card} />)}
           </div>
         </div>
       </div>
@@ -82,15 +251,26 @@ export default function TripsPage() {
           <TagRow tags={tags} onToggle={toggleTag} mobile />
         </div>
 
-        <PromptBox value={prompt} onChange={setPrompt} />
+        <PromptBox value={prompt} onChange={setPrompt} onSubmit={handleCreateTrip} disabled={planning} />
 
-        <AIPlanButton />
+        <AIPlanButton onClick={handleCreateTrip} loading={planning} disabled={planning} />
 
-        <OngoingTripCard />
+        {errorMessage ? (
+          <p className="text-[13px]" style={{ color: "#d9534f" }}>
+            {errorMessage}
+          </p>
+        ) : null}
+        {successMessage ? (
+          <p className="text-[13px]" style={{ color: "#2ebf59" }}>
+            {successMessage}
+          </p>
+        ) : null}
+
+        <OngoingTripCard trip={ongoingTrip} loading={loadingTrips} onRefresh={refreshTrips} />
 
         <p className="text-[16px] font-semibold text-black">✦ 精選推薦行程</p>
         <div className="flex flex-col gap-4">
-          {REC_CARDS.map((card) => <RecCard key={card.title} {...card} />)}
+          {recCards.map((card) => <RecCard key={`${card.title}-${card.desc}`} {...card} />)}
         </div>
 
         <p className="text-[14px] text-center py-2" style={{ color: "#999" }}>© 2026 Taibear</p>
@@ -147,7 +327,17 @@ function TagRow({ tags, onToggle, mobile }: { tags: typeof STYLE_TAGS; onToggle:
   );
 }
 
-function PromptBox({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function PromptBox({
+  value,
+  onChange,
+  onSubmit,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: () => void;
+  disabled: boolean;
+}) {
   return (
     <div className="relative rounded-[20px] border-2 bg-white" style={{ borderColor: "#3abdff", minHeight: 140 }}>
       <textarea
@@ -158,6 +348,8 @@ function PromptBox({ value, onChange }: { value: string; onChange: (v: string) =
         onChange={(e) => onChange(e.target.value)}
       />
       <button
+        onClick={onSubmit}
+        disabled={disabled}
         className="absolute bottom-3 right-3 w-[36px] h-[36px] rounded-[10px] flex items-center justify-center text-white text-[18px] font-bold"
         style={{ background: "#3abdff" }}
       >
@@ -167,18 +359,61 @@ function PromptBox({ value, onChange }: { value: string; onChange: (v: string) =
   );
 }
 
-function AIPlanButton() {
+function AIPlanButton({ onClick, loading, disabled }: { onClick: () => void; loading: boolean; disabled: boolean }) {
   return (
     <button
-      className="w-full h-[56px] rounded-[16px] text-white text-[17px] font-semibold"
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full h-[56px] rounded-[16px] text-white text-[17px] font-semibold disabled:opacity-70"
       style={{ background: "linear-gradient(to right, #3abdff, #9cd8ed, #fef3da)" }}
     >
-      ✦ AI 個人化規劃行程 →
+      {loading ? "正在規劃行程..." : "✦ AI 個人化規劃行程 →"}
     </button>
   );
 }
 
-function OngoingTripCard() {
+function OngoingTripCard({
+  trip,
+  loading,
+  onRefresh,
+}: {
+  trip?: Trip;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  if (loading) {
+    return (
+      <div
+        className="rounded-[20px] border-2 p-4"
+        style={{ background: "#fef3da", borderColor: "#f7d989", minHeight: 130 }}
+      >
+        <p className="text-[13px]" style={{ color: "#999" }}>讀取行程中...</p>
+      </div>
+    );
+  }
+
+  if (!trip) {
+    return (
+      <div
+        className="rounded-[20px] border-2 p-4 relative"
+        style={{ background: "#fef3da", borderColor: "#f7d989", minHeight: 130 }}
+      >
+        <span
+          className="inline-block px-4 h-[26px] rounded-[20px] text-[11px] font-semibold text-white leading-[26px]"
+          style={{ background: "#ffd26a" }}
+        >
+          尚無行程
+        </span>
+        <p className="mt-2 text-[18px] font-bold text-black">建立你的第一條 AI 行程</p>
+        <p className="text-[13px] mt-1" style={{ color: "#999" }}>
+          輸入需求後，Taibear 會自動搜尋並建立可用路線。
+        </p>
+      </div>
+    );
+  }
+
+  const stopCount = trip.stops?.length ?? 0;
+
   return (
     <div
       className="rounded-[20px] border-2 p-4 relative"
@@ -188,17 +423,18 @@ function OngoingTripCard() {
         className="inline-block px-4 h-[26px] rounded-[20px] text-[11px] font-semibold text-white leading-[26px]"
         style={{ background: "#ffd26a" }}
       >
-        進行中 🔥
+        {trip.status === "active" ? "進行中 🔥" : "已建立 ✨"}
       </span>
-      <p className="mt-2 text-[18px] font-bold text-black">大稻埕文化半日遊</p>
+      <p className="mt-2 text-[18px] font-bold text-black">{trip.route_name || `行程 ${trip.trip_id}`}</p>
       <p className="text-[13px] mt-1" style={{ color: "#999" }}>
-        📅 2025/04/26 · 📍 5 個景點 · ⏱ 約 5 小時
+        📅 {formatDateLabel(trip.trip_date)} · 📍 {stopCount} 個景點 · 🧭 {trip.theme || "城市探索"}
       </p>
       <button
+        onClick={onRefresh}
         className="absolute bottom-4 right-4 px-4 h-[32px] rounded-[10px] text-white text-[12px] font-semibold"
         style={{ background: "#ffd26a" }}
       >
-        繼續行程 →
+        更新資料 ↻
       </button>
     </div>
   );

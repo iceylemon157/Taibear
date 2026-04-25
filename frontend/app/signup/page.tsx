@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ApiError } from "@/services/api/client";
+import { authService } from "@/services/api/services";
+import { setSession } from "@/services/auth/session";
+
 const CONIC_BG =
   "conic-gradient(from 90deg at 50% 50%, rgb(254,243,218) -26%, rgb(208,239,255) 13%, rgb(231,241,237) 33%, rgb(251,243,221) 52%, rgb(253,243,219) 67%, rgb(254,243,218) 74%, rgb(208,239,255) 113%)";
 
@@ -14,13 +18,66 @@ export default function SignUpPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "", confirm: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [k]: e.target.value }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push("/trips");
+
+    setErrorMessage("");
+    const userId = form.email.trim().toLowerCase();
+    const displayName = `${form.firstName.trim()} ${form.lastName.trim()}`.trim() || userId;
+
+    if (!userId) {
+      setErrorMessage("請輸入 Email。");
+      return;
+    }
+    if (form.password.length < 6) {
+      setErrorMessage("密碼至少需要 6 個字元。");
+      return;
+    }
+    if (form.password !== form.confirm) {
+      setErrorMessage("兩次輸入的密碼不一致。");
+      return;
+    }
+    if (!agreed) {
+      setErrorMessage("請先同意服務條款與隱私政策。");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const result = await authService.register({
+        user_id: userId,
+        password: form.password,
+        display_name: displayName,
+      });
+
+      setSession({
+        userId: result.user.user_id,
+        displayName: result.user.display_name || result.user.user_id,
+        accessToken: result.access_token,
+        refreshToken: result.refresh_token,
+        accessTokenExpiresAt: Date.now() + result.expires_in * 1000,
+        refreshTokenExpiresAt: Date.now() + result.refresh_expires_in * 1000,
+      });
+      router.push("/trips");
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.status === 400 && /already exists/i.test(error.message)) {
+          setErrorMessage("此帳號已存在，請直接登入。");
+        } else {
+          setErrorMessage(error.message || "註冊失敗，請稍後再試。");
+        }
+      } else {
+        setErrorMessage("註冊失敗，請稍後再試。");
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -139,11 +196,18 @@ export default function SignUpPage() {
           {/* Create Account */}
           <button
             type="submit"
-            className="w-full h-[52px] md:h-[56px] rounded-[16px] text-white text-[16px] font-bold mb-5 transition-opacity hover:opacity-90"
+            disabled={submitting}
+            className="w-full h-[52px] md:h-[56px] rounded-[16px] text-white text-[16px] font-bold mb-3 transition-opacity disabled:cursor-not-allowed disabled:opacity-70 hover:opacity-90"
             style={{ background: "#3abdff" }}
           >
-            Create Account
+            {submitting ? "Creating account..." : "Create Account"}
           </button>
+
+          {errorMessage ? (
+            <p className="text-[13px] mb-5" style={{ color: "#d9534f" }}>
+              {errorMessage}
+            </p>
+          ) : null}
 
           {/* Divider */}
           <div className="flex items-center gap-4 mb-5">

@@ -10,7 +10,7 @@ To activate:
 
 from __future__ import annotations
 
-from sqlalchemy import create_engine, Column, Integer, MetaData, Table, Text, select, text
+from sqlalchemy import Boolean, create_engine, Column, Integer, MetaData, Table, Text, select, text
 from sqlalchemy.dialects.postgresql import JSONB, insert
 
 from .base import UserRepository
@@ -28,6 +28,29 @@ _user_profiles = Table(
     Column("preferred_transportation", JSONB, nullable=False, server_default=text("'[]'")),
     Column("selected_tags", JSONB, nullable=False, server_default=text("'[]'")),
     Column("reels", JSONB, nullable=False, server_default=text("'[]'")),
+)
+
+_auth_accounts = Table(
+    "auth_accounts",
+    _metadata,
+    Column("user_id", Text, primary_key=True),
+    Column("password_hash", Text, nullable=False),
+    Column("created_at", Text, nullable=False),
+    Column("updated_at", Text, nullable=False),
+)
+
+_auth_sessions = Table(
+    "auth_sessions",
+    _metadata,
+    Column("session_id", Text, primary_key=True),
+    Column("user_id", Text, nullable=False),
+    Column("access_token_hash", Text, nullable=False, unique=True),
+    Column("refresh_token_hash", Text, nullable=False, unique=True),
+    Column("access_expires_at", Text, nullable=False),
+    Column("refresh_expires_at", Text, nullable=False),
+    Column("revoked", Boolean, nullable=False, server_default=text("false")),
+    Column("created_at", Text, nullable=False),
+    Column("updated_at", Text, nullable=False),
 )
 
 
@@ -108,3 +131,113 @@ class DbUserRepository(UserRepository):
         with self._engine.connect() as conn:
             rows = conn.execute(stmt).fetchall()
         return [row[0] for row in rows]
+
+    # ── Auth account methods ─────────────────────────────────────────────────
+
+    def auth_account_exists(self, user_id: str) -> bool:
+        stmt = select(_auth_accounts.c.user_id).where(_auth_accounts.c.user_id == user_id)
+        with self._engine.connect() as conn:
+            row = conn.execute(stmt).fetchone()
+        return row is not None
+
+    def create_auth_account(self, user_id: str, password_hash: str, created_at: str) -> None:
+        if self.auth_account_exists(user_id):
+            raise ValueError(f"Auth account '{user_id}' already exists.")
+
+        stmt = insert(_auth_accounts).values(
+            user_id=user_id,
+            password_hash=password_hash,
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        with self._engine.begin() as conn:
+            conn.execute(stmt)
+
+    def get_auth_password_hash(self, user_id: str) -> str:
+        stmt = select(_auth_accounts.c.password_hash).where(_auth_accounts.c.user_id == user_id)
+        with self._engine.connect() as conn:
+            row = conn.execute(stmt).fetchone()
+        if row is None:
+            raise KeyError(f"Auth account '{user_id}' not found.")
+        return str(row[0])
+
+    # ── Auth session methods ─────────────────────────────────────────────────
+
+    def create_auth_session(self, session: dict) -> None:
+        stmt = insert(_auth_sessions).values(**session)
+        with self._engine.begin() as conn:
+            conn.execute(stmt)
+
+    @staticmethod
+    def _session_row_to_dict(row) -> dict:
+        if row is None:
+            return None
+        return {
+            "session_id": row.session_id,
+            "user_id": row.user_id,
+            "access_token_hash": row.access_token_hash,
+            "refresh_token_hash": row.refresh_token_hash,
+            "access_expires_at": row.access_expires_at,
+            "refresh_expires_at": row.refresh_expires_at,
+            "revoked": bool(row.revoked),
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        }
+
+    def get_auth_session_by_access_hash(self, access_token_hash: str) -> dict | None:
+        stmt = select(_auth_sessions).where(_auth_sessions.c.access_token_hash == access_token_hash)
+        with self._engine.connect() as conn:
+            row = conn.execute(stmt).fetchone()
+        return self._session_row_to_dict(row)
+
+    def get_auth_session_by_refresh_hash(self, refresh_token_hash: str) -> dict | None:
+        stmt = select(_auth_sessions).where(_auth_sessions.c.refresh_token_hash == refresh_token_hash)
+        with self._engine.connect() as conn:
+            row = conn.execute(stmt).fetchone()
+        return self._session_row_to_dict(row)
+
+    def rotate_auth_session_tokens(
+        self,
+        session_id: str,
+        access_token_hash: str,
+        refresh_token_hash: str,
+        access_expires_at: str,
+        refresh_expires_at: str,
+        updated_at: str,
+    ) -> None:
+        stmt = (
+            _auth_sessions.update()
+            .where(_auth_sessions.c.session_id == session_id)
+            .values(
+                access_token_hash=access_token_hash,
+                refresh_token_hash=refresh_token_hash,
+                access_expires_at=access_expires_at,
+                refresh_expires_at=refresh_expires_at,
+                revoked=False,
+                updated_at=updated_at,
+            )
+        )
+        with self._engine.begin() as conn:
+            result = conn.execute(stmt)
+        if result.rowcount == 0:
+            raise KeyError(f"Session '{session_id}' not found.")
+
+    def revoke_auth_session_by_access_hash(self, access_token_hash: str, updated_at: str) -> bool:
+        stmt = (
+            _auth_sessions.update()
+            .where(_auth_sessions.c.access_token_hash == access_token_hash)
+            .values(revoked=True, updated_at=updated_at)
+        )
+        with self._engine.begin() as conn:
+            result = conn.execute(stmt)
+        return result.rowcount > 0
+
+    def revoke_auth_session_by_refresh_hash(self, refresh_token_hash: str, updated_at: str) -> bool:
+        stmt = (
+            _auth_sessions.update()
+            .where(_auth_sessions.c.refresh_token_hash == refresh_token_hash)
+            .values(revoked=True, updated_at=updated_at)
+        )
+        with self._engine.begin() as conn:
+            result = conn.execute(stmt)
+        return result.rowcount > 0
