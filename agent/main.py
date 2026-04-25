@@ -2,10 +2,15 @@
 main.py — YTP Planning Agent FastAPI 服務入口
 
 Endpoints:
-  GET  /health   — 健康檢查（不需 API key）
-  POST /search   — 關鍵字搜尋景點，回傳 SpotResult
-  POST /plan     — 接收 SpotResult → 3 條路線
-  POST /enrich   — 接收路線 JSON → 評論 + 照片 + 字幕
+  GET  /health                  — 健康檢查（不需 API key）
+  POST /search                  — 關鍵字搜尋景點，回傳 SpotResult
+  POST /plan                    — 接收 SpotResult → 3 條路線
+  POST /enrich                  — 接收路線 JSON → 評論 + 照片 + 字幕
+  GET  /api/recommend-hotels    — 地點 + 標籤推薦旅宿（不需 API key）
+  POST /api/recommend-hotels    — 自然語言 Gemini 推薦旅宿（不需 API key）
+  GET  /api/check-hotel         — 驗證旅宿合法性（不需 API key）
+  POST /api/save-hotel          — 收藏旅宿（不需 API key）
+  GET  /api/saved-hotels        — 取得收藏旅宿清單（不需 API key）
 """
 
 import asyncio
@@ -25,6 +30,7 @@ from sqlalchemy.orm import Session
 load_dotenv()
 
 import config
+from hotel_recommender import recommend as _recommend, recommend_from_prompt as _recommend_from_prompt
 from agent.enricher import enrich_routes
 from agent.gemini_client import is_quota_error
 from agent.models import UserPreference, load_user
@@ -340,6 +346,58 @@ def save_hotel(req: SaveHotelRequest, db: Session = Depends(get_db)):
         hotel_id=req.hotel_id,
     )
     return {"saved": True, "created": created, "id": row.id}
+
+
+# ── Hotel Recommendation ────────────────────────────────────────────────────────
+
+
+class HotelRecommendRequest(BaseModel):
+    prompt: str
+    top_n: Optional[int] = 5
+
+
+@app.get("/api/recommend-hotels")
+def recommend_hotels(
+    location: str,
+    hashtags: str = "",
+    top_n: int = 5,
+):
+    """
+    根據地點和偏好標籤推薦合法旅宿（不需 API key）。
+    比對方式：hashtag 重疊數（高 → 低）+ 距離（近 → 遠）。
+
+    Query params:
+      location  — 地標、捷運站或地址，例如 "忠孝復興" 或 "台北 101"
+      hashtags  — 逗號分隔的標籤，例如 "文青,交通方便" 或 "#地點優越"
+      top_n     — 回傳筆數（預設 5）
+    """
+    tag_list = [t.strip() for t in hashtags.split(",") if t.strip()] if hashtags else []
+    try:
+        results = _recommend(location, tag_list, top_n=top_n)
+        return {"recommendations": results}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/recommend-hotels")
+def recommend_hotels_from_prompt(req: HotelRecommendRequest):
+    """
+    以自然語言描述住宿需求，由 Gemini 解析並推薦旅宿（不需 API key）。
+    回傳結果含 LLM 推薦理由（reason 欄位）。
+
+    Body: { "prompt": "我想找忠孝復興附近，文青風格、交通方便的飯店", "top_n": 5 }
+    """
+    try:
+        results = _recommend_from_prompt(req.prompt, top_n=req.top_n or 5)
+        return {"recommendations": results}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        if is_quota_error(e):
+            raise HTTPException(status_code=429, detail="Gemini API 配額已用盡，請稍後再試")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/saved-hotels")

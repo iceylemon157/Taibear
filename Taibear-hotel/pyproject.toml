@@ -1,0 +1,13 @@
+[project]
+name = "ytp"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.9"
+dependencies = [
+    "google-genai>=1.47.0",
+    "httpx>=0.28.1",
+    "ipykernel>=6.31.0",
+    "pandas>=2.3.3",
+    "python-dotenv>=1.2.1",
+    "tqdm>=4.67.3",
+]

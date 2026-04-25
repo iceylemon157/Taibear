@@ -36,6 +36,15 @@ def _normalize(text: str) -> str:
     return text.strip().lower().replace(" ", "").replace("　", "") if text else ""
 
 
+def _normalize_license(text: str) -> str:
+    """Normalize license number for comparison.
+    Booking.com may display the informal variant 台 (U+53F0) while the
+    Tourism Bureau dataset uses the formal 臺 (U+81FA).  Collapse both to
+    the formal variant so the exact-match query is variant-insensitive.
+    """
+    return text.strip().replace("台", "臺") if text else ""
+
+
 def _fuzzy_match_by_field(db: Session, search_name: str, field, label: str):
     """Fuzzy substring containment match against a single Hotel column."""
     norm = _normalize(search_name)
@@ -64,7 +73,8 @@ def check_hotel(
 
     # 1. License number exact match
     if license_number:
-        hotel = db.query(Hotel).filter(Hotel.license_number == license_number.strip()).first()
+        normalized_lic = _normalize_license(license_number)
+        hotel = db.query(Hotel).filter(Hotel.license_number == normalized_lic).first()
         if hotel:
             matched_by = "license"
 

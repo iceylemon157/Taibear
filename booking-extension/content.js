@@ -660,7 +660,23 @@ function showFloat(state, hotelData, lang = "zh") {
 
 // ─── 掃描主流程 ─────────────────────────────────────────────
 
+/**
+ * 只在個別房源頁面執行掃描，避免在首頁、搜尋頁等誤觸。
+ * Booking.com 房源頁路徑：/hotel/<country>/<name>.*.html
+ * Airbnb 房源頁路徑：/rooms/<id>
+ */
+function isPropertyPage() {
+  const path = location.pathname;
+  if (SITE === "booking") return /^\/hotel\//.test(path);
+  if (SITE === "airbnb")  return /^\/rooms\//.test(path);
+  return false;
+}
+
 async function scanAndStore() {
+  if (!isPropertyPage()) {
+    tbLog.info("scanAndStore: not a property page, skipping", { path: location.pathname });
+    return;
+  }
   tbLog.info("scanAndStore: start", { site: SITE, url: location.pathname });
 
   let name, gps, address, phone, propertyType;

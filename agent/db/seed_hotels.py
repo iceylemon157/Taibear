@@ -29,6 +29,7 @@ from db.engine import get_engine, get_session, init_db
 from db.models import Hotel
 
 DEFAULT_JSON = Path(__file__).parent.parent / "data" / "hotels" / "HotelList.json"
+# Raw (original Tourism Bureau format) is kept as HotelList_Raw.json
 BATCH_SIZE = 500
 
 
@@ -37,22 +38,18 @@ def _parse_rows(path: Path) -> list[dict]:
         data = json.load(f)
 
     rows = []
-    for h in data["Hotels"]:
-        org_name = None
-        if h.get("Organizations"):
-            org_name = h["Organizations"][0].get("Name")
-        addr = h.get("PostalAddress", {})
+    for h in data:
         rows.append({
             "hotel_id":       h["HotelID"],
             "name_en":        h.get("HotelName"),
-            "name_zh":        org_name,
+            "name_zh":        h.get("chinese_name"),
             "license_number": h.get("HotelLicenseNumber"),
-            "city":           addr.get("City"),
-            "address":        addr.get("StreetAddress"),
+            "city":           None,
+            "address":        h.get("chinese_address"),
             "lat":            h.get("PositionLat"),
             "lng":            h.get("PositionLon"),
-            "service_status": h.get("ServiceStatus", 1),
-            "hotel_class":    h["HotelClasses"][0] if h.get("HotelClasses") else None,
+            "service_status": 1,
+            "hotel_class":    None,
         })
     return rows
 
