@@ -1,64 +1,16 @@
-import { apiRequest } from "@/services/api/client";
+import { apiRequest } from "@/lib/api/client";
 import type {
-  AuthPayload,
-  AuthTokens,
   CheckHotelResponse,
   CreateUserPayload,
-  EnrichResponse,
-  HotelSearchResponse,
   ListSavedHotelsResponse,
-  LoginPayload,
   PlanResponse,
-  PlannedRoute,
-  RegisterPayload,
   SavedHotel,
   SpotResult,
   Trip,
   UpdateUserPayload,
   UserProfile,
   RealtimeWeatherResponse,
-} from "@/services/api/types";
-
-export const authService = {
-  register(payload: RegisterPayload) {
-    return apiRequest<AuthPayload>("/api/bff/auth/register", {
-      method: "POST",
-      body: payload,
-    });
-  },
-
-  login(payload: LoginPayload) {
-    return apiRequest<AuthPayload>("/api/bff/auth/login", {
-      method: "POST",
-      body: payload,
-    });
-  },
-
-  me(accessToken: string) {
-    return apiRequest<{ user: UserProfile }>("/api/bff/auth/me", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-  },
-
-  refresh(refreshToken: string) {
-    return apiRequest<AuthTokens>("/api/bff/auth/refresh", {
-      method: "POST",
-      body: { refresh_token: refreshToken },
-    });
-  },
-
-  logout(accessToken?: string, refreshToken?: string) {
-    const headers: HeadersInit = accessToken
-      ? { Authorization: `Bearer ${accessToken}` }
-      : {};
-
-    return apiRequest<{ ok: boolean; revoked: boolean }>("/api/bff/auth/logout", {
-      method: "POST",
-      headers,
-      body: { refresh_token: refreshToken ?? null },
-    });
-  },
-};
+} from "@/lib/api/types";
 
 export const usersService = {
   listUsers() {
@@ -118,13 +70,6 @@ export const agentService = {
     });
   },
 
-  enrich(recommendedRoutes: PlannedRoute[]) {
-    return apiRequest<EnrichResponse>("/api/bff/agent/enrich", {
-      method: "POST",
-      body: { recommended_routes: recommendedRoutes },
-    });
-  },
-
   listSavedHotels() {
     return apiRequest<ListSavedHotelsResponse>("/api/bff/agent/api/saved-hotels");
   },
@@ -155,18 +100,6 @@ export const agentService = {
   }) {
     return apiRequest<CheckHotelResponse>("/api/bff/agent/api/check-hotel", {
       query: params,
-    });
-  },
-
-  searchHotels(payload: {
-    query: string;
-    location?: string;
-    tags?: string[];
-    top_k?: number;
-  }) {
-    return apiRequest<HotelSearchResponse>("/api/bff/agent/api/search-hotels", {
-      method: "POST",
-      body: payload,
     });
   },
 

@@ -10,39 +10,6 @@ export interface UserProfile {
   combined_tags?: string[];
 }
 
-export interface AuthTokens {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-  refresh_expires_in: number;
-}
-
-export interface AuthPayload {
-  user: UserProfile;
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-  refresh_expires_in: number;
-}
-
-export interface LoginPayload {
-  user_id: string;
-  password: string;
-}
-
-export interface RegisterPayload {
-  user_id: string;
-  password: string;
-  display_name: string;
-  country?: string;
-  preferred_languages?: string[];
-  age?: number;
-  preferred_transportation?: string[];
-  selected_tags?: string[];
-}
-
 export interface CreateUserPayload {
   user_id: string;
   display_name: string;
@@ -69,17 +36,15 @@ export interface SpotResult {
   [key: string]: unknown;
 }
 
-export interface TspEvaluation {
-  total_transit_time_mins: number;
-  smoothness_score: number;
-}
-
 export interface PlannedRoute {
   route_id: string;
   route_name: string;
   theme: string;
   google_maps_url: string;
-  tsp_evaluation: TspEvaluation;
+  tsp_evaluation: {
+    total_transit_time_mins: number;
+    smoothness_score: number;
+  };
   waypoints: Array<{
     step_order: number;
     name: string;
@@ -112,44 +77,11 @@ export interface Trip {
   status: "planned" | "active" | "disrupted" | "replanning" | "completed" | "cancelled";
   route_name: string;
   theme: string;
-  tsp_evaluation?: TspEvaluation | null;
   google_maps_url: string;
-  original_route_id?: string;
   stops: TripStop[];
   active_alerts: unknown[];
   updated_at?: string;
   created_at?: string;
-}
-
-export interface EnrichReview {
-  author: string;
-  rating: number;
-  text: string;
-  time: string;
-}
-
-export interface EnrichedPlace {
-  place_name: string;
-  place_id: string;
-  folder: string;
-  reviews: {
-    newest: EnrichReview[];
-    most_relevant: EnrichReview[];
-  };
-  captions: string[];
-  photos: string[];
-}
-
-export interface EnrichedRoute {
-  route_id: string;
-  route_name: string;
-  places: EnrichedPlace[];
-}
-
-export interface EnrichResponse {
-  run_id: string;
-  output_dir: string;
-  routes: Record<string, EnrichedRoute>;
 }
 
 export interface SavedHotel {
@@ -191,31 +123,6 @@ export interface CheckHotelResponse {
   address?: string;
   detail?: string;
   [key: string]: unknown;
-}
-
-export interface HotelSearchResult {
-  hotel_id: string | null;
-  name: string;
-  name_zh?: string | null;
-  name_en?: string | null;
-  city?: string | null;
-  address?: string | null;
-  license_number?: string | null;
-  lat?: number | null;
-  lng?: number | null;
-  hotel_class?: string | null;
-  score: number;
-  reason: string;
-}
-
-export interface HotelSearchResponse {
-  query: string;
-  location?: string | null;
-  tags: string[];
-  total_candidates: number;
-  ranked_hotels: HotelSearchResult[];
-  used_llm: boolean;
-  warning?: string | null;
 }
 
 export interface RealtimeWeatherResponse {

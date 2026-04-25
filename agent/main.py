@@ -22,7 +22,7 @@ from fastapi import Depends, FastAPI, Form, HTTPException, Security, UploadFile,
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 load_dotenv()
@@ -30,6 +30,7 @@ load_dotenv()
 import config
 from agent.enricher import enrich_routes
 from agent.gemini_client import is_quota_error
+from agent.hotel_search_pipeline import search_and_rank_hotels
 from agent.models import UserPreference, load_user
 from db.engine import get_session, init_db
 from db.hidden_spots import (
@@ -105,6 +106,38 @@ class EnrichResponse(BaseModel):
     run_id: str
     output_dir: str
     routes: dict
+
+
+class HotelSearchRequest(BaseModel):
+    query: str = ""
+    location: Optional[str] = ""
+    tags: list[str] = Field(default_factory=list)
+    top_k: int = 8
+
+
+class HotelSearchItem(BaseModel):
+    hotel_id: Optional[str] = None
+    name: str
+    name_zh: Optional[str] = None
+    name_en: Optional[str] = None
+    city: Optional[str] = None
+    address: Optional[str] = None
+    license_number: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    hotel_class: Optional[str] = None
+    score: float
+    reason: str = ""
+
+
+class HotelSearchResponse(BaseModel):
+    query: str
+    location: Optional[str] = ""
+    tags: list[str]
+    total_candidates: int
+    ranked_hotels: list[HotelSearchItem]
+    used_llm: bool
+    warning: Optional[str] = None
 
 
 async def _load_preference_from_user_profile_api(user_id: str) -> UserPreference | None:
@@ -350,6 +383,27 @@ class SaveHotelRequest(BaseModel):
     source:         str             = "booking"
     source_url:     Optional[str]   = None
     hotel_id:       Optional[str]   = None   # hotels.hotel_id，合法旅宿才有
+
+
+@app.post("/api/search-hotels", response_model=HotelSearchResponse)
+def search_hotels(req: HotelSearchRequest, db: Session = Depends(get_db)):
+    """
+    根據 query/location/tags 搜尋合法旅宿並排序。
+    優先使用 LLM 排序，失敗時會自動退回規則式排序。
+    """
+    try:
+        result = search_and_rank_hotels(
+            db,
+            query=req.query,
+            location=req.location or "",
+            tags=req.tags,
+            top_k=req.top_k,
+        )
+        return HotelSearchResponse.model_validate(result)
+    except Exception as e:
+        if is_quota_error(e):
+            raise HTTPException(status_code=429, detail="Gemini API 配額已用盡，請稍後再試")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/check-hotel")
