@@ -1,5 +1,4 @@
-// ← 上線後換成部署的 API URL
-const API_BASE = "http://localhost:8000";
+// API 請求統一透過 background service worker 轉發，解決 CORS 限制
 
 // ─── i18n ────────────────────────────────────────────────────
 const I18N = {
@@ -205,39 +204,42 @@ function localCheck(name) {
   return null;
 }
 
-async function checkHotel(hotelPayload) {
-  const { name, lat, lng, licenseNumber, address } = hotelPayload;
-  if (hotelPayload.lang) {
-    currentLang = hotelPayload.lang === "zh" ? "zh" : "en";
+function checkHotel(hotelPayload) {
+  const { name, lat, lng, licenseNumber, address, lang, source } = hotelPayload;
+  if (lang) {
+    currentLang = lang === "zh" ? "zh" : "en";
     applyI18n();
   }
 
-  // 1. 先試 API
-  try {
-    const params = new URLSearchParams();
-    if (name)          params.set("name", name);
-    if (lat)           params.set("lat", lat);
-    if (lng)           params.set("lng", lng);
-    if (licenseNumber) params.set("license_number", licenseNumber);
-    if (address)       params.set("address", address);
-
-    const res    = await fetch(`${API_BASE}/api/check-hotel?${params}`);
-    const result = await res.json();
-    // 顯示名字用網頁上的（用戶認識的），登記資料用資料庫的
-    const displayData = result.legal
-      ? { ...result.hotel, name: hotelPayload.name || result.hotel?.name, address: hotelPayload.address || result.hotel?.address }
-      : hotelPayload;
-    showState(result.legal ? "safe" : "unsafe", displayData);
-    return;
-  } catch {}
-
-  // 2. API 沒跑 → 本地 mock
-  const mock = localCheck(name);
-  if (mock) {
-    showState(mock.legal ? "safe" : "unsafe", mock.hotel);
-  } else {
-    showState("unsafe", hotelPayload);
-  }
+  // 透過 background service worker 轉發，避免 CORS
+  chrome.runtime.sendMessage({
+    action: "checkHotel",
+    data: {
+      name,
+      name_en: lang !== "zh" ? name : undefined,
+      lat,
+      lng,
+      licenseNumber,
+      address,
+      source: source || "booking",
+    },
+  }, (response) => {
+    if (response?.success) {
+      const result = response.data;
+      const displayData = result.legal
+        ? { ...result.hotel, name: hotelPayload.name || result.hotel?.name, address: hotelPayload.address || result.hotel?.address }
+        : hotelPayload;
+      showState(result.legal ? "safe" : "unsafe", displayData);
+    } else {
+      // background 無法連線或 API 掛掉 → 本地 mock fallback
+      const mock = localCheck(name);
+      if (mock) {
+        showState(mock.legal ? "safe" : "unsafe", mock.hotel);
+      } else {
+        showState("unsafe", hotelPayload);
+      }
+    }
+  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
