@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ApiError } from "@/services/api/client";
-import { agentService, tripsService } from "@/services/api/services";
+import { agentService, tripsService, usersService } from "@/services/api/services";
 import type {
   EnrichResponse,
   EnrichedRoute,
   PlannedRoute,
   Trip,
+  UserProfile,
 } from "@/services/api/types";
 import { getSession } from "@/services/auth/session";
 
@@ -32,6 +33,13 @@ type RecCardItem = {
   tripId?: string;
 };
 
+type PlanningSnapshot = {
+  prompt: string;
+  selectedTags: string[];
+  relatedPreferenceTags: string[];
+  preferenceSignals: string[];
+};
+
 const FALLBACK_REC_CARDS: RecCardItem[] = [
   { emoji: "🏮", title: "大稻埕文化之旅", desc: "迪化街 · 霞海城隍廟 · 永樂市場", duration: "半天", tags: ["文化", "美食"] },
   { emoji: "🌿", title: "陽明山一日遊", desc: "冷水坑 · 擎天崗 · 花鐘", duration: "一天", tags: ["自然", "健行"] },
@@ -42,6 +50,132 @@ const FALLBACK_REC_CARDS: RecCardItem[] = [
 const CONIC_BG = "conic-gradient(from 90deg at 50% 50%, rgb(254,243,218) -26%, rgb(208,239,255) 13%, rgb(231,241,237) 33%, rgb(251,243,221) 52%, rgb(253,243,219) 67%, rgb(254,243,218) 74%, rgb(208,239,255) 113%)";
 
 const ACTIVE_TRIP_STATUSES = new Set(["active", "planned", "disrupted", "replanning"]);
+
+function toCompactList(values: string[], maxItems: number): string {
+  const sanitized = values.map((value) => value.trim()).filter(Boolean);
+  if (sanitized.length === 0) {
+    return "";
+  }
+  if (sanitized.length <= maxItems) {
+    return sanitized.join("、");
+  }
+  return `${sanitized.slice(0, maxItems).join("、")} 等 ${sanitized.length} 項`;
+}
+
+function collectPreferenceTags(profile: UserProfile | null): string[] {
+  if (!profile) {
+    return [];
+  }
+
+  const rawTags = profile.combined_tags && profile.combined_tags.length > 0
+    ? profile.combined_tags
+    : profile.selected_tags;
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const tag of rawTags) {
+    const normalized = tag.trim();
+    if (!normalized) {
+      continue;
+    }
+    if (seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    result.push(normalized);
+  }
+
+  return result;
+}
+
+function extractPromptTerms(text: string): string[] {
+  const matches = text.toLowerCase().match(/[\u4e00-\u9fff]+|[a-z0-9]+/g) ?? [];
+  const expanded: string[] = [];
+
+  for (const chunk of matches) {
+    expanded.push(chunk);
+    if (/^[\u4e00-\u9fff]+$/.test(chunk) && chunk.length >= 3) {
+      for (let i = 0; i <= chunk.length - 2; i += 1) {
+        expanded.push(chunk.slice(i, i + 2));
+      }
+    }
+  }
+
+  return Array.from(new Set(expanded.filter((term) => term.length >= 2)));
+}
+
+function scorePreferenceTag(tag: string, promptTerms: string[], selectedTags: string[]): number {
+  const normalizedTag = tag.toLowerCase();
+  let score = 0;
+
+  for (const selectedTag of selectedTags) {
+    const normalizedSelected = selectedTag.toLowerCase();
+    if (!normalizedSelected) {
+      continue;
+    }
+    if (normalizedTag.includes(normalizedSelected) || normalizedSelected.includes(normalizedTag)) {
+      score += 4;
+    }
+  }
+
+  for (const term of promptTerms) {
+    if (normalizedTag.includes(term) || term.includes(normalizedTag)) {
+      score += 3;
+    }
+  }
+
+  return score;
+}
+
+function buildRelatedPreferenceTags(
+  profile: UserProfile | null,
+  prompt: string,
+  selectedTags: string[],
+  limit = 4,
+): string[] {
+  const candidates = collectPreferenceTags(profile);
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  const promptTerms = extractPromptTerms(`${prompt} ${selectedTags.join(" ")}`);
+  const scored = candidates.map((tag, index) => ({
+    tag,
+    index,
+    score: scorePreferenceTag(tag, promptTerms, selectedTags),
+  }));
+
+  scored.sort((a, b) => b.score - a.score || a.index - b.index);
+
+  const relevant = scored.filter((item) => item.score > 0).map((item) => item.tag);
+  const remaining = scored.filter((item) => item.score <= 0).map((item) => item.tag);
+
+  return [...relevant, ...remaining].slice(0, limit);
+}
+
+function buildPreferenceSignals(profile: UserProfile | null): string[] {
+  if (!profile) {
+    return [];
+  }
+
+  const signals: string[] = [];
+
+  const transportationSummary = toCompactList(profile.preferred_transportation, 3);
+  if (transportationSummary) {
+    signals.push(`交通偏好：${transportationSummary}`);
+  }
+
+  const languageSummary = toCompactList(profile.preferred_languages, 2);
+  if (languageSummary) {
+    signals.push(`語言偏好：${languageSummary}`);
+  }
+
+  if (profile.country.trim()) {
+    signals.push(`所在國家：${profile.country.trim()}`);
+  }
+
+  return signals;
+}
 
 function cleanTagLabel(label: string): string {
   const cleaned = label.replace(/^[^\s]+\s*/u, "").trim();
@@ -119,6 +253,8 @@ export default function TripsPage() {
   const [statusIdx, setStatusIdx] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [planningSnapshot, setPlanningSnapshot] = useState<PlanningSnapshot | null>(null);
 
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [enrichByTripId, setEnrichByTripId] = useState<Record<string, EnrichResponse>>({});
@@ -252,6 +388,16 @@ export default function TripsPage() {
     setErrorMessage("");
     setSuccessMessage("");
 
+    const relatedPreferenceTags = buildRelatedPreferenceTags(userProfile, query, selectedTagNames);
+    const preferenceSignals = buildPreferenceSignals(userProfile);
+
+    setPlanningSnapshot({
+      prompt: query,
+      selectedTags: [...selectedTagNames],
+      relatedPreferenceTags,
+      preferenceSignals,
+    });
+
     try {
       const searchResult = await agentService.search({
         query,
@@ -306,6 +452,34 @@ export default function TripsPage() {
   }, [planning]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadUserProfile() {
+      if (!session?.userId) {
+        setUserProfile(null);
+        return;
+      }
+
+      try {
+        const profile = await usersService.get(session.userId);
+        if (!cancelled) {
+          setUserProfile(profile);
+        }
+      } catch {
+        if (!cancelled) {
+          setUserProfile(null);
+        }
+      }
+    }
+
+    void loadUserProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.userId]);
+
+  useEffect(() => {
     void refreshTrips();
   }, [session?.userId]);
 
@@ -348,20 +522,10 @@ export default function TripsPage() {
           <AIPlanButton onClick={handleCreateTrip} loading={planning} disabled={planning} />
 
           {planning ? (
-            <div className="flex items-center gap-3 rounded-[16px] px-4 py-3"
-              style={{ background: "white", boxShadow: "0px 4px 16px rgba(58,189,255,0.14)", border: "1.5px solid rgba(58,189,255,0.18)" }}>
-              <span style={{ fontSize: 26, animation: "bearBounce 0.9s ease infinite", display: "inline-block" }}>🐻</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-semibold text-[#141414]">{STATUS_MESSAGES[statusIdx]}</p>
-                <p className="text-[12px]" style={{ color: "#999" }}>Taibear 正在規劃中，請稍候</p>
-              </div>
-              <div className="flex gap-1.5 flex-shrink-0">
-                {[0,1,2].map(i => (
-                  <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "#3abdff",
-                    animation: `dotPulse 1.2s ease ${i * 0.22}s infinite` }} />
-                ))}
-              </div>
-            </div>
+            <PlanningStatusCard
+              statusMessage={STATUS_MESSAGES[statusIdx]}
+              planningSnapshot={planningSnapshot}
+            />
           ) : errorMessage ? (
             <p className="text-[13px]" style={{ color: "#d9534f" }}>{errorMessage}</p>
           ) : successMessage ? (
@@ -425,20 +589,10 @@ export default function TripsPage() {
         <AIPlanButton onClick={handleCreateTrip} loading={planning} disabled={planning} />
 
         {planning ? (
-          <div className="flex items-center gap-3 rounded-[16px] px-4 py-3"
-            style={{ background: "white", boxShadow: "0px 4px 16px rgba(58,189,255,0.14)", border: "1.5px solid rgba(58,189,255,0.18)" }}>
-            <span style={{ fontSize: 26, animation: "bearBounce 0.9s ease infinite", display: "inline-block" }}>🐻</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-[14px] font-semibold text-[#141414]">{STATUS_MESSAGES[statusIdx]}</p>
-              <p className="text-[12px]" style={{ color: "#999" }}>Taibear 正在規劃中，請稍候</p>
-            </div>
-            <div className="flex gap-1.5 flex-shrink-0">
-              {[0,1,2].map(i => (
-                <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "#3abdff",
-                  animation: `dotPulse 1.2s ease ${i * 0.22}s infinite` }} />
-              ))}
-            </div>
-          </div>
+          <PlanningStatusCard
+            statusMessage={STATUS_MESSAGES[statusIdx]}
+            planningSnapshot={planningSnapshot}
+          />
         ) : errorMessage ? (
           <p className="text-[13px]" style={{ color: "#d9534f" }}>{errorMessage}</p>
         ) : successMessage ? (
@@ -569,6 +723,72 @@ function AIPlanButton({ onClick, loading, disabled }: { onClick: () => void; loa
     >
       {loading ? "正在規劃行程..." : "✦ AI 個人化規劃行程 →"}
     </button>
+  );
+}
+
+function PlanningStatusCard({
+  statusMessage,
+  planningSnapshot,
+}: {
+  statusMessage: string;
+  planningSnapshot: PlanningSnapshot | null;
+}) {
+  const promptText = planningSnapshot?.prompt || "未提供";
+  const selectedTagsText = planningSnapshot && planningSnapshot.selectedTags.length > 0
+    ? planningSnapshot.selectedTags.join("、")
+    : "未額外選擇前端標籤";
+  const relatedPreferenceTagsText = planningSnapshot && planningSnapshot.relatedPreferenceTags.length > 0
+    ? planningSnapshot.relatedPreferenceTags.join("、")
+    : "我們會參考你在問卷中留下的個人偏好標籤";
+  const preferenceSignalsText = planningSnapshot && planningSnapshot.preferenceSignals.length > 0
+    ? planningSnapshot.preferenceSignals.join(" ｜ ")
+    : "";
+
+  return (
+    <div
+      className="flex items-start gap-3 rounded-[16px] px-4 py-3"
+      style={{
+        background: "white",
+        boxShadow: "0px 4px 16px rgba(58,189,255,0.14)",
+        border: "1.5px solid rgba(58,189,255,0.18)",
+      }}
+    >
+      <span style={{ fontSize: 26, animation: "bearBounce 0.9s ease infinite", display: "inline-block" }}>🐻</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-[14px] font-semibold text-[#141414]">{statusMessage}</p>
+        <p className="text-[12px]" style={{ color: "#999" }}>Taibear 正在規劃中，已參考以下資料：</p>
+        <div className="mt-1.5">
+          <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
+            提示詞：{promptText}
+          </p>
+          <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
+            已選標籤：{selectedTagsText}
+          </p>
+          <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
+            根據我們對你的了解，這次會優先考慮你的偏好標籤：{relatedPreferenceTagsText}
+          </p>
+          {preferenceSignalsText ? (
+            <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
+              另外也會參考：{preferenceSignalsText}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex gap-1.5 flex-shrink-0 pt-1">
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: "#3abdff",
+              animation: `dotPulse 1.2s ease ${i * 0.22}s infinite`,
+            }}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 

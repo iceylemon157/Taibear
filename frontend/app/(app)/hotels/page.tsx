@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError } from "@/services/api/client";
-import { agentService } from "@/services/api/services";
-import type { HotelSearchResult } from "@/services/api/types";
+import { agentService, usersService } from "@/services/api/services";
+import type { HotelSearchResult, UserProfile } from "@/services/api/types";
+import { getSession } from "@/services/auth/session";
 
 // ── Data ─────────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,14 @@ type RankedHotel = {
   reason: string;
 };
 
+type SearchContextSnapshot = {
+  prompt: string;
+  location: string;
+  selectedTags: string[];
+  relatedPreferenceTags: string[];
+  preferenceSignals: string[];
+};
+
 function toRankedHotel(hotel: HotelSearchResult, index: number): RankedHotel {
   return {
     id: hotel.hotel_id ?? `${hotel.name}-${index}`,
@@ -83,6 +92,132 @@ function toRankedHotel(hotel: HotelSearchResult, index: number): RankedHotel {
     score: hotel.score,
     reason: hotel.reason,
   };
+}
+
+function toCompactList(values: string[], maxItems: number): string {
+  const sanitized = values.map((value) => value.trim()).filter(Boolean);
+  if (sanitized.length === 0) {
+    return "";
+  }
+  if (sanitized.length <= maxItems) {
+    return sanitized.join("、");
+  }
+  return `${sanitized.slice(0, maxItems).join("、")} 等 ${sanitized.length} 項`;
+}
+
+function collectPreferenceTags(profile: UserProfile | null): string[] {
+  if (!profile) {
+    return [];
+  }
+
+  const rawTags = profile.combined_tags && profile.combined_tags.length > 0
+    ? profile.combined_tags
+    : profile.selected_tags;
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const tag of rawTags) {
+    const normalized = tag.trim();
+    if (!normalized) {
+      continue;
+    }
+    if (seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    result.push(normalized);
+  }
+
+  return result;
+}
+
+function extractPromptTerms(text: string): string[] {
+  const matches = text.toLowerCase().match(/[\u4e00-\u9fff]+|[a-z0-9]+/g) ?? [];
+  const expanded: string[] = [];
+
+  for (const chunk of matches) {
+    expanded.push(chunk);
+    if (/^[\u4e00-\u9fff]+$/.test(chunk) && chunk.length >= 3) {
+      for (let i = 0; i <= chunk.length - 2; i += 1) {
+        expanded.push(chunk.slice(i, i + 2));
+      }
+    }
+  }
+
+  return Array.from(new Set(expanded.filter((term) => term.length >= 2)));
+}
+
+function scorePreferenceTag(tag: string, promptTerms: string[], selectedTags: string[]): number {
+  const normalizedTag = tag.toLowerCase();
+  let score = 0;
+
+  for (const selectedTag of selectedTags) {
+    const normalizedSelected = selectedTag.toLowerCase();
+    if (!normalizedSelected) {
+      continue;
+    }
+    if (normalizedTag.includes(normalizedSelected) || normalizedSelected.includes(normalizedTag)) {
+      score += 4;
+    }
+  }
+
+  for (const term of promptTerms) {
+    if (normalizedTag.includes(term) || term.includes(normalizedTag)) {
+      score += 3;
+    }
+  }
+
+  return score;
+}
+
+function buildRelatedPreferenceTags(
+  profile: UserProfile | null,
+  prompt: string,
+  selectedTags: string[],
+  limit = 4,
+): string[] {
+  const candidates = collectPreferenceTags(profile);
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  const promptTerms = extractPromptTerms(`${prompt} ${selectedTags.join(" ")}`);
+  const scored = candidates.map((tag, index) => ({
+    tag,
+    index,
+    score: scorePreferenceTag(tag, promptTerms, selectedTags),
+  }));
+
+  scored.sort((a, b) => b.score - a.score || a.index - b.index);
+
+  const relevant = scored.filter((item) => item.score > 0).map((item) => item.tag);
+  const remaining = scored.filter((item) => item.score <= 0).map((item) => item.tag);
+
+  return [...relevant, ...remaining].slice(0, limit);
+}
+
+function buildPreferenceSignals(profile: UserProfile | null): string[] {
+  if (!profile) {
+    return [];
+  }
+
+  const signals: string[] = [];
+
+  const transportationSummary = toCompactList(profile.preferred_transportation, 3);
+  if (transportationSummary) {
+    signals.push(`交通偏好：${transportationSummary}`);
+  }
+
+  const languageSummary = toCompactList(profile.preferred_languages, 2);
+  if (languageSummary) {
+    signals.push(`語言偏好：${languageSummary}`);
+  }
+
+  if (profile.country.trim()) {
+    signals.push(`所在國家：${profile.country.trim()}`);
+  }
+
+  return signals;
 }
 
 // ── Shared sub-components ─────────────────────────────────────────────────────
@@ -165,11 +300,14 @@ function HotelsView({ onSwitch, showExtensionBtn = true }: { onSwitch: () => voi
   const [results, setResults] = useState<RankedHotel[]>([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
-  const [searchHint, setSearchHint] = useState("請輸入需求與地點，系統會自動搜尋最佳旅宿。");
+  const [searchHint, setSearchHint] = useState("請輸入需求與地點，點擊按鈕後系統會搜尋最佳旅宿。");
   const [checkedCount, setCheckedCount] = useState(0);
   const [savingHotelId, setSavingHotelId] = useState("");
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [searchSnapshot, setSearchSnapshot] = useState<SearchContextSnapshot | null>(null);
 
   const searchSeqRef = useRef(0);
+  const session = useMemo(() => getSession(), []);
 
   const toggleTag = (i: number) =>
     setTags((prev) => prev.map((t, idx) => (idx === i ? { ...t, active: !t.active } : t)));
@@ -179,11 +317,50 @@ function HotelsView({ onSwitch, showExtensionBtn = true }: { onSwitch: () => voi
     [tags]
   );
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadUserProfile() {
+      if (!session?.userId) {
+        setUserProfile(null);
+        return;
+      }
+
+      try {
+        const profile = await usersService.get(session.userId);
+        if (!cancelled) {
+          setUserProfile(profile);
+        }
+      } catch {
+        if (!cancelled) {
+          setUserProfile(null);
+        }
+      }
+    }
+
+    void loadUserProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.userId]);
+
   async function runHotelSearch() {
     const query = prompt.trim();
     const selectedLocation = location.trim();
     const effectiveQuery = query || activeTagLabels.join(" ");
     const currentSeq = ++searchSeqRef.current;
+
+    const relatedPreferenceTags = buildRelatedPreferenceTags(userProfile, effectiveQuery, activeTagLabels);
+    const preferenceSignals = buildPreferenceSignals(userProfile);
+
+    setSearchSnapshot({
+      prompt: effectiveQuery,
+      location: selectedLocation,
+      selectedTags: [...activeTagLabels],
+      relatedPreferenceTags,
+      preferenceSignals,
+    });
 
     setSearching(true);
     setSearchError("");
@@ -362,6 +539,10 @@ function HotelsView({ onSwitch, showExtensionBtn = true }: { onSwitch: () => voi
           {searching ? "正在自動搜尋合法旅宿..." : "✦ 自動搜尋最佳合法旅宿"}
         </button>
 
+        {searching ? (
+          <HotelSearchStatusCard searchSnapshot={searchSnapshot} />
+        ) : null}
+
         {searchError ? (
           <p className="text-[13px] mt-3" style={{ color: "#d9534f" }}>{searchError}</p>
         ) : null}
@@ -489,6 +670,49 @@ function BrowserMockup() {
           <button className="w-full h-7 rounded-[8px] text-[10px] font-semibold text-white" style={{ background: "#3abdff" }}>加入 Taibear 行程 →</button>
           <p className="text-[9px] text-center" style={{ color: "#999" }}>已掃描 2,341 間・更新於今日</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function HotelSearchStatusCard({ searchSnapshot }: { searchSnapshot: SearchContextSnapshot | null }) {
+  const promptText = searchSnapshot?.prompt || "未提供";
+  const locationText = searchSnapshot?.location || "未指定";
+  const selectedTagsText = searchSnapshot && searchSnapshot.selectedTags.length > 0
+    ? searchSnapshot.selectedTags.join("、")
+    : "未額外選擇前端標籤";
+  const preferenceTagsText = searchSnapshot && searchSnapshot.relatedPreferenceTags.length > 0
+    ? searchSnapshot.relatedPreferenceTags.join("、")
+    : "我們會參考你在問卷中留下的個人偏好標籤";
+  const preferenceSignalsText = searchSnapshot && searchSnapshot.preferenceSignals.length > 0
+    ? searchSnapshot.preferenceSignals.join(" ｜ ")
+    : "";
+
+  return (
+    <div
+      className="mt-3 rounded-[16px] px-4 py-3"
+      style={{
+        background: "white",
+        boxShadow: "0px 4px 16px rgba(58,189,255,0.14)",
+        border: "1.5px solid rgba(58,189,255,0.18)",
+      }}
+    >
+      <p className="text-[13px] font-semibold text-[#141414]">Taibear 正在搜尋旅宿中，已參考以下資料：</p>
+      <div className="mt-1.5">
+        <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
+          搜尋需求：{promptText}
+        </p>
+        <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
+          地點：{locationText}；已選標籤：{selectedTagsText}
+        </p>
+        <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
+          根據我們對你的了解，這次會優先考慮你的偏好標籤：{preferenceTagsText}
+        </p>
+        {preferenceSignalsText ? (
+          <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
+            另外也會參考：{preferenceSignalsText}
+          </p>
+        ) : null}
       </div>
     </div>
   );
