@@ -30,7 +30,7 @@ export default function LandingPage() {
         }}
       >
         <Link
-          href="/trips"
+          href="/login"
           className="h-[36px] px-6 rounded-[20px] flex items-center text-[15px] font-semibold text-white"
           style={{
             background: "rgba(255,210,106,0.82)",
@@ -40,7 +40,7 @@ export default function LandingPage() {
           Log in
         </Link>
         <Link
-          href="/trips"
+          href="/signup"
           className="h-[36px] px-6 rounded-[20px] flex items-center text-[15px] font-semibold"
           style={{
             background: "white",
