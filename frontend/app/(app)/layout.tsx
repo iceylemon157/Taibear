@@ -1,13 +1,28 @@
 import { Providers } from "@/components/providers";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { MobileTopBar } from "@/components/layout/MobileTopBar";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <Providers>
+      {/* Mobile nav */}
+      <MobileTopBar />
+      <MobileBottomNav />
+
       <div className="h-full flex">
-        <Sidebar />
-        <main className="ml-[220px] flex-1 min-h-screen overflow-auto">
-          {children}
+        {/* Desktop sidebar — hidden on mobile */}
+        <div className="hidden md:block">
+          <Sidebar />
+        </div>
+
+        <main className="
+          flex-1 min-h-screen overflow-auto
+          pt-[76px] pb-[84px]
+          md:pt-0 md:pb-0 md:ml-[220px]
+        ">
+          <AuthGate>{children}</AuthGate>
         </main>
       </div>
     </Providers>

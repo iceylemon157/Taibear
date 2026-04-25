@@ -15,16 +15,19 @@ Endpoints:
 
 import asyncio
 import json
+import logging
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Form, HTTPException, Security, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
-from pydantic import BaseModel
+import httpx
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 load_dotenv()
@@ -33,6 +36,7 @@ import config
 from hotel_recommender import recommend as _recommend, recommend_from_prompt as _recommend_from_prompt
 from agent.enricher import enrich_routes
 from agent.gemini_client import is_quota_error
+from agent.hotel_search_pipeline import search_and_rank_hotels
 from agent.models import UserPreference, load_user
 from db.engine import get_session, init_db
 from db.hidden_spots import (
@@ -51,6 +55,7 @@ from schemas import (
 )
 
 api_key_header = APIKeyHeader(name="X-API-Key")
+logger = logging.getLogger(__name__)
 
 
 def verify_api_key(key: str = Security(api_key_header)) -> None:
@@ -109,6 +114,73 @@ class EnrichResponse(BaseModel):
     routes: dict
 
 
+class HotelSearchRequest(BaseModel):
+    query: str = ""
+    location: Optional[str] = ""
+    tags: list[str] = Field(default_factory=list)
+    top_k: int = 8
+
+
+class HotelSearchItem(BaseModel):
+    hotel_id: Optional[str] = None
+    name: str
+    name_zh: Optional[str] = None
+    name_en: Optional[str] = None
+    city: Optional[str] = None
+    address: Optional[str] = None
+    license_number: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    hotel_class: Optional[str] = None
+    score: float
+    reason: str = ""
+
+
+class HotelSearchResponse(BaseModel):
+    query: str
+    location: Optional[str] = ""
+    tags: list[str]
+    total_candidates: int
+    ranked_hotels: list[HotelSearchItem]
+    used_llm: bool
+    warning: Optional[str] = None
+
+
+async def _load_preference_from_user_profile_api(user_id: str) -> UserPreference | None:
+    """Load user preference from User Profile Manager by user_id (email)."""
+    base_url = (config.USER_PROFILE_API_URL or "").rstrip("/")
+    if not base_url:
+        return None
+
+    url = f"{base_url}/users/{quote(user_id, safe='')}"
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(url)
+    except Exception as exc:
+        logger.warning("Failed to fetch profile from user-profile service: %s", exc)
+        return None
+
+    if resp.status_code == 404:
+        return None
+
+    if resp.status_code >= 400:
+        logger.warning(
+            "User-profile service returned %s for user '%s': %s",
+            resp.status_code,
+            user_id,
+            resp.text,
+        )
+        return None
+
+    try:
+        payload = resp.json()
+        return UserPreference.model_validate(payload)
+    except Exception as exc:
+        logger.warning("Invalid profile payload from user-profile service: %s", exc)
+        return None
+
+
 # ── Endpoints ───────────────────────────────────────────────────────────────────
 
 
@@ -130,7 +202,18 @@ async def search(request: SearchRequest):
         if request.tg_user_id is not None:
             preference = load_preference_from_db(request.tg_user_id)
         elif request.user_id:
-            preference, preference_path = load_user(request.user_id, config.USERS_DIR)
+            try:
+                preference, preference_path = load_user(request.user_id, config.USERS_DIR)
+            except FileNotFoundError:
+                # Frontend login now uses User Profile Manager, so user preference files
+                # may not exist under agent/db/users. Fallback to profile service.
+                preference = await _load_preference_from_user_profile_api(request.user_id)
+                if preference is None:
+                    # Keep request usable even if no stored preference is found.
+                    preference = UserPreference(
+                        user_id=request.user_id,
+                        display_name=request.user_id,
+                    )
 
         if request.tags:
             merged = list(dict.fromkeys(preference.selected_tags + request.tags))
@@ -306,6 +389,27 @@ class SaveHotelRequest(BaseModel):
     source:         str             = "booking"
     source_url:     Optional[str]   = None
     hotel_id:       Optional[str]   = None   # hotels.hotel_id，合法旅宿才有
+
+
+@app.post("/api/search-hotels", response_model=HotelSearchResponse)
+def search_hotels(req: HotelSearchRequest, db: Session = Depends(get_db)):
+    """
+    根據 query/location/tags 搜尋合法旅宿並排序。
+    優先使用 LLM 排序，失敗時會自動退回規則式排序。
+    """
+    try:
+        result = search_and_rank_hotels(
+            db,
+            query=req.query,
+            location=req.location or "",
+            tags=req.tags,
+            top_k=req.top_k,
+        )
+        return HotelSearchResponse.model_validate(result)
+    except Exception as e:
+        if is_quota_error(e):
+            raise HTTPException(status_code=429, detail="Gemini API 配額已用盡，請稍後再試")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/check-hotel")

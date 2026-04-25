@@ -7,6 +7,7 @@
 #   docker compose up --build          # start everything
 #   docker compose up --build -d       # detached
 #   docker compose logs -f trip-planner  # tail one service
+#   docker compose logs -f frontend      # tail frontend logs
 
 services:
     # ── Shared Postgres (used by Trip Planning Agent + TG Bot) ──────────────────
@@ -40,6 +41,7 @@ services:
             GOOGLE_API_KEY_3: ${GOOGLE_API_KEY_3:-}
             GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
             YTP_API_KEY: ${YTP_API_KEY}
+            USER_PROFILE_API_URL: http://user-profile-manager:8004
         ports:
             - "8001:8000"
         networks:
@@ -122,6 +124,30 @@ services:
             - "8005:8005"
         networks:
             - ytp
+        restart: unless-stopped
+
+    # ── Frontend (Next.js app, port 3000) ───────────────────────────────────────
+    frontend:
+        build:
+            context: ./frontend
+            dockerfile: Dockerfile
+        environment:
+            NEXT_TELEMETRY_DISABLED: "1"
+            BACKEND_AGENT_URL: http://trip-planner:8000
+            BACKEND_TRIP_MANAGER_URL: http://trip-manager:8003
+            BACKEND_USER_PROFILE_URL: http://user-profile-manager:8004/users
+            BACKEND_USER_PROFILE_AUTH_URL: http://user-profile-manager:8004/auth
+            BACKEND_REALTIME_URL: http://realtime-monitor:8005
+            BACKEND_YTP_API_KEY: ${YTP_API_KEY:-}
+        ports:
+            - "3000:3000"
+        networks:
+            - ytp
+        depends_on:
+            - trip-planner
+            - trip-manager
+            - user-profile-manager
+            - realtime-monitor
         restart: unless-stopped
 
 
