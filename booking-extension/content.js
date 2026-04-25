@@ -185,6 +185,29 @@ function airbnb_extractPropertyType() {
 // ─── 共用邏輯 ───────────────────────────────────────────────
 
 function extractLicenseNumber() {
+  // 1. 「執照號碼：」標籤精確比對（最可靠，不依賴 selector 結構）
+  for (const el of document.querySelectorAll('p, span, li, div')) {
+    const text = el.childElementCount === 0 ? el.textContent.trim() : "";
+    if (/^執照號碼[：:]/.test(text)) {
+      const val = text.replace(/^執照號碼[：:]\s*/, "").trim();
+      if (val) return val;
+    }
+  }
+
+  // 2. XPath 定位（Booking.com 目前結構的已知位置）
+  try {
+    const xpathResult = document.evaluate(
+      '/html/body/div[4]/div/div[4]/main/div/div[3]/div[6]/div/div/div[12]/div/section/div/div[2]/div/div/p[2]',
+      document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
+    );
+    const xpathEl = xpathResult.singleNodeValue;
+    if (xpathEl?.textContent) {
+      const val = xpathEl.textContent.replace(/^執照號碼[：:]\s*/, "").trim();
+      if (val) return val;
+    }
+  } catch {}
+
+  // 3. 候選 selector 搭配 regex
   const candidates = [
     '[data-testid="property-description"]',
     '[data-section-id="DESCRIPTION_DEFAULT"]',
@@ -198,9 +221,21 @@ function extractLicenseNumber() {
       if (match) return match[0];
     }
   }
-  // 全頁 fallback
+
+  // 4. 全頁 fallback
   const match = document.body.innerText.match(LICENSE_RE);
   return match ? match[0] : null;
+}
+
+// 等待執照號碼出現（Booking.com 此段落為動態載入，最多等 8 秒）
+async function waitForLicense(maxMs = 8000, intervalMs = 800) {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    const license = extractLicenseNumber();
+    if (license) return license;
+    await new Promise(r => setTimeout(r, intervalMs));
+  }
+  return null;
 }
 
 // ─── 浮動卡片 ───────────────────────────────────────────────
@@ -355,7 +390,10 @@ async function scanAndStore() {
 
   showFloat("scanning");
 
-  const license = extractLicenseNumber();
+  // Booking.com 的執照號碼段落為動態載入，等待最多 8 秒
+  const license = SITE === "booking"
+    ? await waitForLicense()
+    : extractLicenseNumber();
 
   const payload = {
     name,
