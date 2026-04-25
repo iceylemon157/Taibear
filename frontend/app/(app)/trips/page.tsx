@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { ApiError } from "@/services/api/client";
 import { agentService, tripsService } from "@/services/api/services";
@@ -106,12 +107,16 @@ function tripToPlannedRoute(trip: Trip): PlannedRoute {
   };
 }
 
+const STATUS_MESSAGES = ["搜尋最佳景點...", "規劃路線中...", "整理行程資訊...", "即將完成..."];
+
 export default function TripsPage() {
+  const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [tags, setTags] = useState(STYLE_TAGS);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loadingTrips, setLoadingTrips] = useState(false);
   const [planning, setPlanning] = useState(false);
+  const [statusIdx, setStatusIdx] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -268,19 +273,7 @@ export default function TripsPage() {
         chosen_route: chosenRoute,
       });
 
-      setSelectedTripId(trip.trip_id);
-      setPrompt("");
-
-      const enrich = await enrichTrip(trip, chosenRoute);
-      if (enrich) {
-        setSuccessMessage(
-          `已建立行程：${trip.route_name || trip.trip_id}，並補充 ${countEnrichedPlaces(enrich)} 筆景點資訊。`
-        );
-      } else {
-        setSuccessMessage(`已建立行程：${trip.route_name || trip.trip_id}`);
-      }
-
-      await refreshTrips();
+      router.push(`/trips/${trip.trip_id}`);
     } catch (error) {
       if (error instanceof ApiError) {
         setErrorMessage(error.message);
@@ -307,6 +300,12 @@ export default function TripsPage() {
   }
 
   useEffect(() => {
+    if (!planning) { setStatusIdx(0); return; }
+    const id = setInterval(() => setStatusIdx(i => (i + 1) % STATUS_MESSAGES.length), 1800);
+    return () => clearInterval(id);
+  }, [planning]);
+
+  useEffect(() => {
     void refreshTrips();
   }, [session?.userId]);
 
@@ -323,6 +322,10 @@ export default function TripsPage() {
 
   return (
     <div className="min-h-screen" style={{ background: CONIC_BG }}>
+      <style>{`
+        @keyframes bearBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
+        @keyframes dotPulse { 0%,80%,100%{opacity:0.3;transform:scale(0.8)} 40%{opacity:1;transform:scale(1.1)} }
+      `}</style>
 
       {/* ── Desktop: two-column layout ──────────────────────────────── */}
       <div className="hidden md:flex min-h-screen">
@@ -344,15 +347,25 @@ export default function TripsPage() {
 
           <AIPlanButton onClick={handleCreateTrip} loading={planning} disabled={planning} />
 
-          {errorMessage ? (
-            <p className="text-[13px]" style={{ color: "#d9534f" }}>
-              {errorMessage}
-            </p>
-          ) : null}
-          {successMessage ? (
-            <p className="text-[13px]" style={{ color: "#2ebf59" }}>
-              {successMessage}
-            </p>
+          {planning ? (
+            <div className="flex items-center gap-3 rounded-[16px] px-4 py-3"
+              style={{ background: "white", boxShadow: "0px 4px 16px rgba(58,189,255,0.14)", border: "1.5px solid rgba(58,189,255,0.18)" }}>
+              <span style={{ fontSize: 26, animation: "bearBounce 0.9s ease infinite", display: "inline-block" }}>🐻</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[14px] font-semibold text-[#141414]">{STATUS_MESSAGES[statusIdx]}</p>
+                <p className="text-[12px]" style={{ color: "#999" }}>Taibear 正在規劃中，請稍候</p>
+              </div>
+              <div className="flex gap-1.5 flex-shrink-0">
+                {[0,1,2].map(i => (
+                  <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "#3abdff",
+                    animation: `dotPulse 1.2s ease ${i * 0.22}s infinite` }} />
+                ))}
+              </div>
+            </div>
+          ) : errorMessage ? (
+            <p className="text-[13px]" style={{ color: "#d9534f" }}>{errorMessage}</p>
+          ) : successMessage ? (
+            <p className="text-[13px]" style={{ color: "#2ebf59" }}>{successMessage}</p>
           ) : null}
 
           <p className="text-[14px] text-center mt-auto pt-4" style={{ color: "#999" }}>© 2026 Taibear</p>
@@ -367,7 +380,7 @@ export default function TripsPage() {
             trip={ongoingTrip}
             loading={loadingTrips}
             onRefresh={refreshTrips}
-            onOpen={ongoingTrip ? () => void handleSelectTrip(ongoingTrip.trip_id) : undefined}
+            onOpen={ongoingTrip ? () => router.push(`/trips/${ongoingTrip.trip_id}`) : undefined}
             selected={Boolean(ongoingTrip && selectedTripId === ongoingTrip.trip_id)}
           />
           <p className="text-[16px] font-semibold text-black">✦ 精選推薦行程</p>
@@ -377,7 +390,7 @@ export default function TripsPage() {
                 key={`${card.title}-${card.desc}`}
                 {...card}
                 selected={Boolean(card.tripId && selectedTripId === card.tripId)}
-                onClick={card.tripId ? () => void handleSelectTrip(card.tripId as string) : undefined}
+                onClick={card.tripId ? () => router.push(`/trips/${card.tripId}`) : undefined}
               />
             ))}
           </div>
@@ -411,22 +424,32 @@ export default function TripsPage() {
 
         <AIPlanButton onClick={handleCreateTrip} loading={planning} disabled={planning} />
 
-        {errorMessage ? (
-          <p className="text-[13px]" style={{ color: "#d9534f" }}>
-            {errorMessage}
-          </p>
-        ) : null}
-        {successMessage ? (
-          <p className="text-[13px]" style={{ color: "#2ebf59" }}>
-            {successMessage}
-          </p>
+        {planning ? (
+          <div className="flex items-center gap-3 rounded-[16px] px-4 py-3"
+            style={{ background: "white", boxShadow: "0px 4px 16px rgba(58,189,255,0.14)", border: "1.5px solid rgba(58,189,255,0.18)" }}>
+            <span style={{ fontSize: 26, animation: "bearBounce 0.9s ease infinite", display: "inline-block" }}>🐻</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[14px] font-semibold text-[#141414]">{STATUS_MESSAGES[statusIdx]}</p>
+              <p className="text-[12px]" style={{ color: "#999" }}>Taibear 正在規劃中，請稍候</p>
+            </div>
+            <div className="flex gap-1.5 flex-shrink-0">
+              {[0,1,2].map(i => (
+                <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "#3abdff",
+                  animation: `dotPulse 1.2s ease ${i * 0.22}s infinite` }} />
+              ))}
+            </div>
+          </div>
+        ) : errorMessage ? (
+          <p className="text-[13px]" style={{ color: "#d9534f" }}>{errorMessage}</p>
+        ) : successMessage ? (
+          <p className="text-[13px]" style={{ color: "#2ebf59" }}>{successMessage}</p>
         ) : null}
 
         <OngoingTripCard
           trip={ongoingTrip}
           loading={loadingTrips}
           onRefresh={refreshTrips}
-          onOpen={ongoingTrip ? () => void handleSelectTrip(ongoingTrip.trip_id) : undefined}
+          onOpen={ongoingTrip ? () => router.push(`/trips/${ongoingTrip.trip_id}`) : undefined}
           selected={Boolean(ongoingTrip && selectedTripId === ongoingTrip.trip_id)}
         />
 
@@ -437,7 +460,7 @@ export default function TripsPage() {
               key={`${card.title}-${card.desc}`}
               {...card}
               selected={Boolean(card.tripId && selectedTripId === card.tripId)}
-              onClick={card.tripId ? () => void handleSelectTrip(card.tripId as string) : undefined}
+              onClick={card.tripId ? () => router.push(`/trips/${card.tripId}`) : undefined}
             />
           ))}
         </div>
