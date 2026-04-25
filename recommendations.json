@@ -1,0 +1,52 @@
+[
+  {
+    "hotel_name": "喬合大飯店（香城連鎖）",
+    "google_rating": 4.5,
+    "review_count": 1171.0,
+    "hashtags": "#高CP值 #交通便利 #貼心服務",
+    "address": "106台灣臺北市大安區復興南路一段136號",
+    "link": "https://maps.google.com/?cid=2698467207617509047",
+    "image": "https://lh3.googleusercontent.com/places/ANXAkqGfUV4JjdQFH_uCRxo6mGaXRhPQpsLEJz7VXpUb4T0JUT8KkHoFFYKg0Yy3mzGzYeiqVW0co8wIqUfFUeCbj31R-a8bfFfIsxQ=s1600-w1200",
+    "distance_km": 0.13
+  },
+  {
+    "hotel_name": "艾爾行旅 Hej Taipei",
+    "google_rating": 4.3,
+    "review_count": 594.0,
+    "hashtags": "#東區核心 #交通便利 #高CP值 #貼心款待 #舒適住宿",
+    "address": "106台灣台北市大安区忠孝东路四段87號7樓",
+    "link": "https://maps.google.com/?cid=9503698173932229113",
+    "image": "https://lh3.googleusercontent.com/place-photos/AJRVUZMXvSASqpUd1NGZWvMcjiJ_7SG3rSXgTNEHAI_tbscYlADDqKNoZXUvUtBgPU7U9dTh10Djr8Q9Eb4fjI0AHvkDc0jINfsIOhWFCcS2XRTlRND1qcHGSytXP1ndM_PxD8fcvlegsDh3SUhviFE=s1600-w1200",
+    "distance_km": 0.39
+  },
+  {
+    "hotel_name": "台北碧瑤飯店",
+    "google_rating": 4.2,
+    "review_count": 680.0,
+    "hashtags": "#交通便利 #潔淨舒適 #賓至如歸",
+    "address": "105台灣臺北市松山區八德路二段367號",
+    "link": "https://maps.google.com/?cid=11277660319994699936",
+    "image": "https://lh3.googleusercontent.com/places/ANXAkqEzZNrBBCAgxDsJYeDQIVeBCYDxDtnNg13T1iaJI7FVi-ZFiOgSU6-em4zzQRaZm99hHkWFNCp2QQb3QKRCeEBWmzj-WccZTIo=s1600-w1200",
+    "distance_km": 0.71
+  },
+  {
+    "hotel_name": "方舟旅店 東門館 ARK Hotel Dongmen",
+    "google_rating": 4.1,
+    "review_count": 672.0,
+    "hashtags": "#鬧中取靜 #交通便利 #休憩好去處",
+    "address": "100台灣臺北市中正區信義路二段255號",
+    "link": "https://maps.google.com/?cid=13816710018669692510",
+    "image": "https://lh3.googleusercontent.com/place-photos/AJRVUZMnF2cabMej7U1Pm98T3hDHHmu40jycQZ2EKX-tpxQoJ0pDBg4KkNampTrQYKmJW_kc-6cOwFHA__w1EZyAYAJAwbFnmIUO6HjE658CQfvknkshOcTrAOwR9VZBS7iGcjk1Sbc0fvJ8Au41Smmrdko1aQ=s1600-w1200",
+    "distance_km": 0.73
+  },
+  {
+    "hotel_name": "台北悠趣旅店 (小巨蛋館)",
+    "google_rating": 4.5,
+    "review_count": 1012.0,
+    "hashtags": "#暖心服務 #交通便利 #高CP值 #機能完善",
+    "address": "105台灣臺北市松山區長安東路二段219號 12樓",
+    "link": "https://maps.google.com/?cid=5177023468105876689",
+    "image": "https://lh3.googleusercontent.com/places/ANXAkqESeTtlgrdaPiw5dG1z65EyFKvfwafUQq4wl39GyV1BmdU1bxcpditr7M9rntdJkGBLOew9o-oo3yIQ8VWYYD5FHndKudiu4rQ=s1600-w1200",
+    "distance_km": 0.76
+  }
+]
