@@ -1,6 +1,8 @@
 import json
 import os
+import sys
 import time
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -8,14 +10,17 @@ from dotenv import load_dotenv
 from google import genai
 from tqdm import tqdm
 
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
 from gmaps_fetcher import search_with_status, fetch_reviews, fetch_photo_urls
 
 # --- config ---------------------------------------------------------------
 
-load_dotenv()
+load_dotenv(ROOT / '.env')
 
-INPUT_PATH = 'Hotel-json/HotelList.json'
-OUTPUT_PATH = 'Taipei_Hotel_with_hashtag.json'
+INPUT_PATH = ROOT / 'Hotel-json' / 'HotelList.json'
+OUTPUT_PATH = ROOT / 'data' / 'Taipei_Hotel_with_hashtag.json'
 SAMPLE = None  # set to None to run all rows
 
 DROP_COLUMNS = [

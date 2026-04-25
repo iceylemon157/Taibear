@@ -2,17 +2,22 @@ from __future__ import annotations
 
 import json
 import math
+import sys
+from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 
 from gmaps_fetcher import search_by_keyword
 
 # --- config ---------------------------------------------------------------
 
-load_dotenv()
+load_dotenv(ROOT / '.env')
 
-INPUT_PATH = 'Taipei_Hotel_with_hashtag.json'
+INPUT_PATH = ROOT / 'data' / 'Taipei_Hotel_with_hashtag.json'
 TOP_N = 5
 EARTH_RADIUS_KM = 6371.0
 
@@ -84,7 +89,7 @@ def recommend(desired_location: str, personal_hashtags: list[str]) -> list[dict]
     return [format_for_spec(h, dist) for _, dist, h in scored[:TOP_N]]
 
 
-OUTPUT_PATH = 'recommendations.json'
+OUTPUT_PATH = ROOT / 'output' / 'recommendations.json'
 
 
 if __name__ == '__main__':
