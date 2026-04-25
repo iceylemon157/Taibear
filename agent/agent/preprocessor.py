@@ -91,6 +91,31 @@ def build_persona_description(preference: UserPreference) -> str:
     return "\n".join(lines)
 
 
+def _load_hidden_spot_candidates() -> list[dict]:
+    """從 DB 取出所有隱藏景點，格式化為 candidate dict。"""
+    try:
+        from db.engine import get_session
+        from db.hidden_spots import get_all_spots
+        SessionLocal = get_session()
+        with SessionLocal() as db:
+            spots = get_all_spots(db)
+        return [
+            {
+                "name": s.name,
+                "context": (
+                    f"[隱藏景點] {s.description or ''} "
+                    f"地址：{s.address or ''} "
+                    f"類型：{s.category or ''} "
+                    f"氛圍：{', '.join(s.vibes or [])}"
+                ),
+            }
+            for s in spots
+        ]
+    except Exception as e:
+        print(f"[Preprocessor] ⚠ 隱藏景點注入失敗：{e}")
+        return []
+
+
 def preprocess(request_data: dict) -> dict:
     """
     前處理入口：
@@ -106,6 +131,11 @@ def preprocess(request_data: dict) -> dict:
     candidates = extract_candidate_places(request_data.get("top_results", []))
     weather = get_taipei_weather()
     persona = build_persona_description(pref_obj)
+
+    hidden = _load_hidden_spot_candidates()
+    existing_names = {c["name"] for c in candidates}
+    candidates += [h for h in hidden if h["name"] not in existing_names]
+
     return {
         "candidates": candidates,
         "weather": weather,

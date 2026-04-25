@@ -5,6 +5,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -41,6 +43,8 @@ services:
       YTP_API_KEY: ${YTP_API_KEY}
     ports:
       - "8000:8000"
+    volumes:
+      - agent_data:/app/data
     depends_on:
       db:
         condition: service_healthy
@@ -48,3 +52,4 @@ services:
 
 volumes:
   postgres_data:
+  agent_data:

@@ -9,14 +9,17 @@ Endpoints:
 """
 
 import asyncio
+import json
 import secrets
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Security
+from fastapi import Depends, FastAPI, Form, HTTPException, Security, UploadFile, File
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 load_dotenv()
 
@@ -24,11 +27,19 @@ import config
 from agent.enricher import enrich_routes
 from agent.gemini_client import is_quota_error
 from agent.models import UserPreference, load_user
+from db.engine import get_session
+from db.hidden_spots import (
+    add_comment, add_photo, create_hidden_spot,
+    get_all_spots, get_spot_by_place_id, serialize_spot,
+)
 from db.user_loader import load_preference_from_db
 from agent.planner import run_planner
 from agent.preprocessor import preprocess
 from agent.search_pipeline import run as run_search
-from schemas import PlanResponse, SpotResult
+from schemas import (
+    HiddenSpotDetail, HiddenSpotListItem, HiddenSpotSubmitResponse,
+    PlanResponse, SpotResult,
+)
 
 api_key_header = APIKeyHeader(name="X-API-Key")
 
@@ -40,6 +51,12 @@ def verify_api_key(key: str = Security(api_key_header)) -> None:
         )
     if not secrets.compare_digest(key, config.YTP_API_KEY):
         raise HTTPException(status_code=403, detail="Invalid API key")
+
+
+def get_db():
+    SessionLocal = get_session()
+    with SessionLocal() as db:
+        yield db
 
 
 @asynccontextmanager
@@ -157,3 +174,104 @@ async def enrich(request: EnrichRequest):
         return EnrichResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Hidden Spots ─────────────────────────────────────────────────────────────────
+
+
+@app.post(
+    "/hidden-spots",
+    response_model=HiddenSpotSubmitResponse,
+    dependencies=[Security(verify_api_key)],
+)
+async def submit_hidden_spot(
+    google_place_id: str = Form(...),
+    name: Optional[str] = Form(None),
+    address: Optional[str] = Form(None),
+    lat: Optional[float] = Form(None),
+    lng: Optional[float] = Form(None),
+    description: Optional[str] = Form(None),
+    category: Optional[str] = Form(None),
+    vibes: Optional[str] = Form(None),      # JSON array string: '["文青","秘境"]'
+    tg_user_id: Optional[int] = Form(None),
+    comment_content: Optional[str] = Form(None),
+    comment_rating: Optional[int] = Form(None),
+    photo: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+):
+    """
+    提交隱藏景點：
+    - 若 google_place_id 不存在 → 建立新景點（需提供 name）
+    - 若已存在 → 直接附加評論/照片
+    - 可選擇同時附加評論（comment_content）與照片（photo 檔案）
+    """
+    spot = get_spot_by_place_id(db, google_place_id)
+    created = spot is None
+
+    if created:
+        if not name:
+            raise HTTPException(status_code=422, detail="新景點必須提供 name")
+        vibes_list = json.loads(vibes) if vibes else []
+        spot = create_hidden_spot(
+            db,
+            google_place_id=google_place_id,
+            name=name,
+            address=address,
+            lat=lat,
+            lng=lng,
+            description=description,
+            category=category,
+            vibes=vibes_list,
+            submitted_by=tg_user_id,
+        )
+
+    if comment_content:
+        add_comment(db, spot.id, comment_content, user_id=tg_user_id, rating=comment_rating)
+
+    if photo and photo.filename:
+        spot_dir = config.HIDDEN_SPOTS_DIR / google_place_id
+        spot_dir.mkdir(parents=True, exist_ok=True)
+        existing_count = len(list(spot_dir.glob("photo_*.jpg")))
+        save_path = spot_dir / f"photo_{existing_count + 1:02d}.jpg"
+        save_path.write_bytes(await photo.read())
+        add_photo(db, spot.id, str(save_path), uploaded_by=tg_user_id)
+
+    # Reload to get updated relations
+    db.refresh(spot)
+    return HiddenSpotSubmitResponse(created=created, spot=HiddenSpotDetail(**serialize_spot(spot)))
+
+
+@app.get(
+    "/hidden-spots/{google_place_id}",
+    response_model=HiddenSpotDetail,
+    dependencies=[Security(verify_api_key)],
+)
+def get_hidden_spot(google_place_id: str, db: Session = Depends(get_db)):
+    """取得單一隱藏景點的詳細資訊（含評論與照片）。"""
+    spot = get_spot_by_place_id(db, google_place_id)
+    if not spot:
+        raise HTTPException(status_code=404, detail="找不到該景點")
+    return HiddenSpotDetail(**serialize_spot(spot))
+
+
+@app.get(
+    "/hidden-spots",
+    response_model=list[HiddenSpotListItem],
+    dependencies=[Security(verify_api_key)],
+)
+def list_hidden_spots(db: Session = Depends(get_db)):
+    """列出所有隱藏景點摘要。"""
+    spots = get_all_spots(db)
+    return [
+        HiddenSpotListItem(
+            id=s.id,
+            google_place_id=s.google_place_id,
+            name=s.name,
+            address=s.address,
+            category=s.category,
+            vibes=s.vibes or [],
+            photo_count=len(s.photos),
+            comment_count=len(s.comments),
+        )
+        for s in spots
+    ]

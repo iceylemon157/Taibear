@@ -23,6 +23,7 @@ USERS_DIR = DB_DIR / "users"
 # Enrichment 輸出（照片、評論、字幕）
 DATA_DIR = ROOT_DIR / "data"
 ROUTES_DIR = DATA_DIR / "routes"
+HIDDEN_SPOTS_DIR = DATA_DIR / "hidden_spots"
 
 # ── Gemini ─────────────────────────────────────────────────────────────────────
 
