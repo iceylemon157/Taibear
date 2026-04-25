@@ -5,6 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ApiError } from "@/services/api/client";
+import { authService } from "@/services/api/services";
+import { setSession } from "@/services/auth/session";
+
 const CONIC_BG =
   "conic-gradient(from 90deg at 50% 50%, rgb(254,243,218) -26%, rgb(208,239,255) 13%, rgb(231,241,237) 33%, rgb(251,243,221) 52%, rgb(253,243,219) 67%, rgb(254,243,218) 74%, rgb(208,239,255) 113%)";
 
@@ -14,10 +18,52 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    router.push("/trips");
+
+    setErrorMessage("");
+    const userId = email.trim().toLowerCase();
+    if (!userId) {
+      setErrorMessage("請輸入 Email。");
+      return;
+    }
+    if (!password) {
+      setErrorMessage("請輸入密碼。");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const result = await authService.login({
+        user_id: userId,
+        password,
+      });
+
+      setSession({
+        userId: result.user.user_id,
+        displayName: result.user.display_name || result.user.user_id,
+        accessToken: result.access_token,
+        refreshToken: result.refresh_token,
+        accessTokenExpiresAt: Date.now() + result.expires_in * 1000,
+        refreshTokenExpiresAt: Date.now() + result.refresh_expires_in * 1000,
+      });
+      router.push("/trips");
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          setErrorMessage("帳號或密碼錯誤。");
+        } else {
+          setErrorMessage(error.message || "登入失敗，請稍後再試。");
+        }
+      } else {
+        setErrorMessage("登入失敗，請稍後再試。");
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -97,11 +143,18 @@ export default function LoginPage() {
           {/* Sign in */}
           <button
             type="submit"
-            className="w-full h-[52px] md:h-[56px] rounded-[16px] text-white text-[16px] font-bold mb-5 transition-opacity hover:opacity-90"
+            disabled={submitting}
+            className="w-full h-[52px] md:h-[56px] rounded-[16px] text-white text-[16px] font-bold mb-3 transition-opacity disabled:cursor-not-allowed disabled:opacity-70 hover:opacity-90"
             style={{ background: "#3abdff" }}
           >
-            Sign in
+            {submitting ? "Signing in..." : "Sign in"}
           </button>
+
+          {errorMessage ? (
+            <p className="text-[13px] mb-5" style={{ color: "#d9534f" }}>
+              {errorMessage}
+            </p>
+          ) : null}
 
           {/* Divider */}
           <div className="flex items-center gap-4 mb-5">

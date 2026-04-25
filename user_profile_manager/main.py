@@ -27,6 +27,7 @@ import config  # noqa: E402
 
 from repository.json_repo import JsonUserRepository
 from repository.db_repo import DbUserRepository
+from service.auth_service import AuthService
 from service.user_service import UserService
 from interface.console.console_ui import main_menu
 
@@ -46,18 +47,27 @@ def _build_repo():
 def build_app():
     """Build and return a FastAPI app with UserService wired up."""
     from interface.api.routes import router, set_service  # noqa: E402
+    from interface.api.auth_routes import router as auth_router, set_auth_service  # noqa: E402
     from fastapi import FastAPI                           # noqa: E402
 
     repo = _build_repo()
     service = UserService(repo)
+    auth_service = AuthService(
+        repo=repo,
+        user_service=service,
+        access_ttl_seconds=int(os.getenv("AUTH_ACCESS_TOKEN_TTL_SECONDS", "1800")),
+        refresh_ttl_seconds=int(os.getenv("AUTH_REFRESH_TOKEN_TTL_SECONDS", "1209600")),
+    )
     set_service(service)
+    set_auth_service(auth_service)
 
     app = FastAPI(
         title="User Profile Manager",
-        description="CRUD API for user preference profiles",
+        description="CRUD API for user preference profiles + auth",
         version="0.1.0",
     )
     app.include_router(router, prefix="/users")
+    app.include_router(auth_router, prefix="/auth")
 
     @app.get("/health")
     async def health():

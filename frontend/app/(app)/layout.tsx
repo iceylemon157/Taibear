@@ -1,4 +1,5 @@
 import { Providers } from "@/components/providers";
+import { AuthGate } from "@/components/auth/AuthGate";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
@@ -21,7 +22,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           pt-[76px] pb-[84px]
           md:pt-0 md:pb-0 md:ml-[220px]
         ">
-          {children}
+          <AuthGate>{children}</AuthGate>
         </main>
       </div>
     </Providers>
