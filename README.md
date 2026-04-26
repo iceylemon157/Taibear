@@ -7,7 +7,7 @@
 ![2026 YTP 黑客松](https://img.shields.io/badge/2026_YTP_電客松-賽題A_行旅台北-3ABDFF?style=flat-square)
 ![AI 智慧旅遊](https://img.shields.io/badge/AI_智慧旅遊高峰-臺灣旅市局-5edcb4?style=flat-square)
 
-**[🌐 立即體驗 Taibear →](http://20.18.161.44:3000/login?next=%2Fhotels)** ｜ **[🎨 簡報 →](https://canva.link/47g10vtd2zafeum)**
+**[🌐 立即體驗 Taibear →](http://20.18.161.44:3000/login?next=%2Fhotels)** ｜ **[🎨 簡報 →](https://drive.google.com/file/d/1nW2UayqHr-5SMuwzdR6PHLRgHs10se8j/view)**
 
 ---
 
