@@ -1,84 +1,196 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-const FILTERS = ["全部", "餐廳", "景點", "咖啡廳", "交通"];
+import { DEMO_ITINERARIES } from "@/app/data/demo-itineraries";
+import { GoogleMap } from "@/components/maps/google-map";
+import { agentService, tripsService } from "@/services/api/services";
+import { getSession } from "@/services/auth/session";
+import { getCurrentTripId } from "@/services/trips/currentTrip";
 
-const PINS = [
-  { label: "📍 大稻埕", color: "#3abdff", left: "27%", top: "25%" },
-  { label: "📍 寧夏夜市", color: "#ff9933", left: "43%", top: "34%" },
-  { label: "📍 陽明山", color: "#4db266", left: "63%", top: "16%" },
-  { label: "📍 西門町", color: "#3abdff", left: "35%", top: "47%" },
-  { label: "📍 信義區", color: "#cc4d4d", left: "53%", top: "56%" },
-];
+const FILTERS = ["全部", "知名景點", "當前行程"];
 
-const SELECTED_PLACE = {
-  emoji: "🏮",
-  name: "大稻埕",
-  address: "迪化街一段，大同區",
-  info: "⭐ 4.8  ·  歷史文化  ·  步行友善",
+type ExplorePlace = {
+  id: string;
+  name: string;
+  address: string;
+  info: string;
+  emoji: string;
+  color: string;
+  position: { lat: number; lng: number };
+  source: "landmark" | "trip";
 };
 
-function MapPin({ label, color, left, top, onClick, active }: {
-  label: string; color: string; left: string; top: string; onClick: () => void; active: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="absolute flex flex-col items-center transition-transform hover:scale-105"
-      style={{ left, top, transform: "translateX(-50%)" }}
-    >
-      <div
-        className="px-3 h-[32px] md:h-[36px] rounded-[20px] flex items-center whitespace-nowrap text-white text-[11px] md:text-[12px] font-semibold"
-        style={{
-          background: color,
-          boxShadow: active ? `0 0 0 3px white, 0 0 0 5px ${color}` : "0px 4px 8px 0px rgba(0,0,0,0.2)",
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `8px solid ${color}` }} />
-    </button>
-  );
-}
+const TAIPEI_CENTER = { lat: 25.033, lng: 121.5654 };
+
+const LANDMARK_PLACES: ExplorePlace[] = [
+  {
+    id: "landmark-datong",
+    name: "大稻埕",
+    address: "迪化街一段，大同區",
+    info: "⭐ 4.8 · 歷史文化 · 步行友善",
+    emoji: "🏮",
+    color: "#3abdff",
+    position: { lat: 25.0559, lng: 121.5109 },
+    source: "landmark",
+  },
+  {
+    id: "landmark-ximending",
+    name: "西門町",
+    address: "萬華區武昌街一段",
+    info: "⭐ 4.6 · 商圈逛街 · 夜生活",
+    emoji: "🌃",
+    color: "#f59e0b",
+    position: { lat: 25.0422, lng: 121.5078 },
+    source: "landmark",
+  },
+  {
+    id: "landmark-yangmingshan",
+    name: "陽明山",
+    address: "北投區竹子湖路",
+    info: "⭐ 4.7 · 自然健行 · 山景",
+    emoji: "🌿",
+    color: "#4db266",
+    position: { lat: 25.1559, lng: 121.5467 },
+    source: "landmark",
+  },
+  {
+    id: "landmark-xinyi",
+    name: "台北 101",
+    address: "信義區信義路五段 7 號",
+    info: "⭐ 4.7 · 城市地標 · 觀景",
+    emoji: "🏙️",
+    color: "#ef4444",
+    position: { lat: 25.0339, lng: 121.5645 },
+    source: "landmark",
+  },
+];
 
 export default function ExplorePage() {
+  const session = useMemo(() => getSession(), []);
   const [activeFilter, setActiveFilter] = useState("全部");
-  const [selectedPin, setSelectedPin] = useState<string | null>("📍 大稻埕");
+  const [tripPlaces, setTripPlaces] = useState<ExplorePlace[]>([]);
+  const [selectedPinId, setSelectedPinId] = useState<string>(LANDMARK_PLACES[0].id);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCurrentTripStops() {
+      if (!session?.userId) {
+        if (!cancelled) {
+          setTripPlaces([]);
+        }
+        return;
+      }
+
+      const currentTripId = getCurrentTripId(session.userId);
+      if (!currentTripId) {
+        if (!cancelled) {
+          setTripPlaces([]);
+        }
+        return;
+      }
+
+      try {
+        const trip = currentTripId.startsWith("demo-")
+          ? DEMO_ITINERARIES[currentTripId]
+          : await tripsService.getTrip(currentTripId);
+
+        if (!trip) {
+          if (!cancelled) {
+            setTripPlaces([]);
+          }
+          return;
+        }
+
+        const sortedStops = [...trip.stops].sort((a, b) => a.step_order - b.step_order);
+
+        const unresolvedNames = sortedStops
+          .filter((stop) => !Number.isFinite(stop.location.lat) || !Number.isFinite(stop.location.lng))
+          .map((stop) => stop.name);
+
+        const geocodeMap = new Map<string, { lat: number; lng: number }>();
+        if (unresolvedNames.length > 0) {
+          const geocoded = await agentService.geocode(unresolvedNames);
+          for (const place of geocoded) {
+            if (!place.found) {
+              continue;
+            }
+            geocodeMap.set(place.name, { lat: place.lat, lng: place.lng });
+          }
+        }
+
+        const mapped: ExplorePlace[] = sortedStops.slice(0, 6).map((stop) => {
+          const fallback = geocodeMap.get(stop.name);
+          const lat = Number.isFinite(stop.location.lat) ? stop.location.lat : (fallback?.lat ?? TAIPEI_CENTER.lat);
+          const lng = Number.isFinite(stop.location.lng) ? stop.location.lng : (fallback?.lng ?? TAIPEI_CENTER.lng);
+          return {
+            id: `trip-${stop.stop_id}`,
+            name: stop.name,
+            address: "當前行程停靠點",
+            info: `${stop.suggested_time || "時間待定"} · 行程第 ${stop.step_order} 站`,
+            emoji: "🧭",
+            color: "#6366f1",
+            position: { lat, lng },
+            source: "trip",
+          };
+        });
+
+        if (!cancelled) {
+          setTripPlaces(mapped);
+        }
+      } catch {
+        if (!cancelled) {
+          setTripPlaces([]);
+        }
+      }
+    }
+
+    void loadCurrentTripStops();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.userId]);
+
+  const allPlaces = useMemo(() => [...LANDMARK_PLACES, ...tripPlaces], [tripPlaces]);
+
+  const visiblePlaces = useMemo(() => {
+    if (activeFilter === "知名景點") {
+      return allPlaces.filter((place) => place.source === "landmark");
+    }
+    if (activeFilter === "當前行程") {
+      return allPlaces.filter((place) => place.source === "trip");
+    }
+    return allPlaces;
+  }, [activeFilter, allPlaces]);
+
+  const selectedPlace = useMemo(
+    () => allPlaces.find((place) => place.id === selectedPinId) ?? visiblePlaces[0] ?? null,
+    [allPlaces, selectedPinId, visiblePlaces]
+  );
+
+  const markers = useMemo(
+    () =>
+      visiblePlaces.map((place) => ({
+        id: place.id,
+        title: place.name,
+        label: place.source === "trip" ? "T" : undefined,
+        color: place.id === selectedPlace?.id ? "#ff6b6b" : place.color,
+        position: place.position,
+      })),
+    [selectedPlace?.id, visiblePlaces]
+  );
 
   return (
     <div className="relative w-full h-screen overflow-hidden" style={{ backgroundColor: "#dbe9d8" }}>
-
-      {/* ── Map elements ── */}
-      {["33%", "56%", "78%", "17%", "47%", "69%", "89%"].map((top, i) => (
-        <div key={i} className="absolute left-0 right-0 bg-white" style={{ top, height: i < 3 ? 7 : 4 }} />
-      ))}
-      {["25%", "49%", "74%", "12%", "37%", "62%", "87%"].map((left, i) => (
-        <div key={i} className="absolute top-0 bottom-0 bg-white" style={{ left, width: i < 3 ? 6 : 4 }} />
-      ))}
-      <div className="absolute rounded-sm" style={{ background: "#c0dfba", left: "6%", top: "7%", width: 180, height: 140 }} />
-      <div className="absolute rounded-sm" style={{ background: "#c0dfba", left: "41%", top: "22%", width: 220, height: 160 }} />
-      <div className="absolute rounded-sm" style={{ background: "#c0dfba", left: "74%", top: "44%", width: 160, height: 200 }} />
-      <div className="absolute rounded-sm" style={{ background: "#c0dfba", left: "16%", top: "61%", width: 130, height: 110 }} />
-      <div className="absolute" style={{ background: "#add8e6", left: "57%", top: 0, width: 80, height: "39%" }} />
-      <div className="absolute" style={{ background: "#add8e6", left: "64%", top: 0, width: 40, height: "22%" }} />
-      <div className="absolute" style={{ background: "#add8e6", left: "25%", top: "78%", width: "33%", height: 60 }} />
-      {[
-        { l: "26%", t: "9%", w: 60, h: 40 }, { l: "33%", t: "11%", w: 80, h: 50 },
-        { l: "13%", t: "31%", w: 100, h: 60 }, { l: "45%", t: "44%", w: 70, h: 50 },
-        { l: "70%", t: "17%", w: 90, h: 55 }, { l: "82%", t: "28%", w: 110, h: 70 },
-        { l: "90%", t: "67%", w: 80, h: 55 }, { l: "35%", t: "61%", w: 65, h: 45 },
-      ].map((b, i) => (
-        <div key={i} className="absolute rounded-[3px]" style={{ background: "#d6d6d1", left: b.l, top: b.t, width: b.w, height: b.h }} />
-      ))}
-
-      {/* ── Map pins ── */}
-      {PINS.map((pin) => (
-        <MapPin key={pin.label} {...pin}
-          active={selectedPin === pin.label}
-          onClick={() => setSelectedPin(pin.label === selectedPin ? null : pin.label)}
-        />
-      ))}
+      <GoogleMap
+        className="absolute inset-0"
+        center={TAIPEI_CENTER}
+        zoom={12}
+        markers={markers}
+        onMarkerClick={setSelectedPinId}
+      />
 
       {/* ── Search bar + filters ── */}
 
@@ -114,36 +226,29 @@ export default function ExplorePage() {
         </div>
       </div>
 
-      {/* ── Zoom controls ── */}
-      <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-white rounded-[12px] w-[40px] overflow-hidden flex flex-col items-center" style={{ boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.1)" }}>
-        <button className="w-full h-[44px] text-[20px] font-bold text-[#222] hover:bg-gray-50 flex items-center justify-center">+</button>
-        <div className="w-[30px] h-px bg-gray-200" />
-        <button className="w-full h-[44px] text-[20px] font-bold text-[#222] hover:bg-gray-50 flex items-center justify-center">−</button>
-      </div>
-
       {/* ── Place Detail Card ── */}
-      {selectedPin && (
+      {selectedPlace && (
         <div
           className="absolute bottom-4 left-4 right-4 md:left-10 md:right-auto md:w-[320px] md:bottom-6 bg-white rounded-[20px] p-5"
           style={{ boxShadow: "0px 8px 24px 0px rgba(0,0,0,0.12)" }}
         >
           <div className="flex items-start gap-3 mb-3">
-            <span className="text-[32px] leading-none">{SELECTED_PLACE.emoji}</span>
+            <span className="text-[32px] leading-none">{selectedPlace.emoji}</span>
             <div>
-              <p className="text-[18px] font-bold text-[#222]">{SELECTED_PLACE.name}</p>
-              <p className="text-[13px] mt-0.5" style={{ color: "#999" }}>{SELECTED_PLACE.address}</p>
+              <p className="text-[18px] font-bold text-[#222]">{selectedPlace.name}</p>
+              <p className="text-[13px] mt-0.5" style={{ color: "#999" }}>{selectedPlace.address}</p>
             </div>
           </div>
-          <p className="text-[13px] text-[#222] mb-4">{SELECTED_PLACE.info}</p>
+          <p className="text-[13px] text-[#222] mb-4">{selectedPlace.info}</p>
           <button className="w-full h-[40px] rounded-[12px] text-white text-[14px] font-semibold" style={{ background: "linear-gradient(to right, #3abdff, #9cd8ed, #fef3da)" }}>
             加入行程 →
           </button>
         </div>
       )}
 
-      {/* ── OSM attribution ── */}
+      {/* ── Map attribution ── */}
       <div className="absolute bottom-3 right-3 bg-white/80 rounded px-2 py-1">
-        <p className="text-[10px]" style={{ color: "#999" }}>© OpenStreetMap contributors</p>
+        <p className="text-[10px]" style={{ color: "#999" }}>© Google Maps data</p>
       </div>
     </div>
   );

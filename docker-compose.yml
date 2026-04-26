@@ -137,6 +137,7 @@ services:
             BACKEND_USER_PROFILE_AUTH_URL: http://user-profile-manager:8004/auth
             BACKEND_REALTIME_URL: http://realtime-monitor:8005
             BACKEND_YTP_API_KEY: ${YTP_API_KEY:-}
+            GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
         ports:
             - "3000:3000"
         networks:

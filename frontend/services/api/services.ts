@@ -6,6 +6,7 @@ import type {
   CreateUserPayload,
   EnrichResponse,
   HotelSearchResponse,
+  GeocodeItem,
   ListSavedHotelsResponse,
   LoginPayload,
   PlanResponse,
@@ -115,6 +116,13 @@ export const agentService = {
     return apiRequest<PlanResponse>("/api/bff/agent/plan", {
       method: "POST",
       body: payload,
+    });
+  },
+
+  geocode(placeNames: string[]) {
+    return apiRequest<GeocodeItem[]>("/api/bff/agent/geocode", {
+      method: "POST",
+      body: { place_names: placeNames },
     });
   },
 

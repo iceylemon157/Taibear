@@ -94,6 +94,15 @@ export interface PlanResponse {
   recommended_routes: PlannedRoute[];
 }
 
+export interface GeocodeItem {
+  name: string;
+  place_id: string;
+  lat: number;
+  lng: number;
+  opening_hours: string[];
+  found: boolean;
+}
+
 export interface TripStop {
   stop_id: string;
   step_order: number;

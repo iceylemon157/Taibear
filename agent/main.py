@@ -2,10 +2,16 @@
 main.py — YTP Planning Agent FastAPI 服務入口
 
 Endpoints:
-  GET  /health   — 健康檢查（不需 API key）
-  POST /search   — 關鍵字搜尋景點，回傳 SpotResult
-  POST /plan     — 接收 SpotResult → 3 條路線
-  POST /enrich   — 接收路線 JSON → 評論 + 照片 + 字幕
+  GET  /health                  — 健康檢查（不需 API key）
+  POST /search                  — 關鍵字搜尋景點，回傳 SpotResult
+  POST /plan                    — 接收 SpotResult → 3 條路線
+  POST /geocode                 — 地名批次查詢座標與 place_id
+  POST /enrich                  — 接收路線 JSON → 評論 + 照片 + 字幕
+  GET  /api/recommend-hotels    — 地點 + 標籤推薦旅宿（不需 API key）
+  POST /api/recommend-hotels    — 自然語言 Gemini 推薦旅宿（不需 API key）
+  GET  /api/check-hotel         — 驗證旅宿合法性（不需 API key）
+  POST /api/save-hotel          — 收藏旅宿（不需 API key）
+  GET  /api/saved-hotels        — 取得收藏旅宿清單（不需 API key）
 """
 
 import asyncio
@@ -43,6 +49,7 @@ from db.user_loader import load_preference_from_db
 from agent.planner import run_planner
 from agent.preprocessor import preprocess
 from agent.search_pipeline import run as run_search
+from agent.tools import geocode_places
 from schemas import (
     HiddenSpotDetail, HiddenSpotListItem, HiddenSpotSubmitResponse,
     PlanResponse, SpotResult,
@@ -106,6 +113,19 @@ class EnrichResponse(BaseModel):
     run_id: str
     output_dir: str
     routes: dict
+
+
+class GeocodeRequest(BaseModel):
+    place_names: list[str]
+
+
+class GeocodeItem(BaseModel):
+    name: str
+    place_id: str
+    lat: float
+    lng: float
+    opening_hours: list[str]
+    found: bool
 
 
 class HotelSearchRequest(BaseModel):
@@ -245,6 +265,21 @@ async def plan(request: SpotResult):
         if is_quota_error(e):
             raise HTTPException(status_code=429, detail="Gemini API 配額已用盡，請稍後再試")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/geocode", response_model=list[GeocodeItem], dependencies=[Security(verify_api_key)])
+async def geocode(request: GeocodeRequest):
+    """
+    批次地名查詢：回傳 place_id + lat/lng + 營業時間。
+    供前端在建立地圖資料時補齊座標。
+    """
+    names = [name.strip() for name in request.place_names if name and name.strip()]
+    if not names:
+        return []
+
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, lambda: geocode_places(names))
+    return [GeocodeItem.model_validate(item) for item in result]
 
 
 @app.post(

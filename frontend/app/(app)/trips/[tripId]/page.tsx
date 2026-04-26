@@ -3,6 +3,7 @@
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEMO_ITINERARIES } from "@/app/data/demo-itineraries";
+import { GoogleMap, type MapTravelMode } from "@/components/maps/google-map";
 import { agentService, tripsService } from "@/services/api/services";
 import type { EnrichResponse, EnrichedPlace, Trip, TripStop } from "@/services/api/types";
 import { getSession } from "@/services/auth/session";
@@ -45,9 +46,61 @@ function getStopEmoji(stop: TripStop): string {
   return "📍";
 }
 
-function getTransitLabel(idx: number): string {
-  const modes = ["🚶 步行 8 分", "🚶 步行 3 分", "🚌 公車 12 分", "🚶 步行 5 分", "🚊 捷運 6 分", "🚶 步行 10 分"];
-  return modes[idx % modes.length];
+type SegmentHeuristic = {
+  distanceKm: number;
+  recommendedMode: MapTravelMode;
+  minutesByMode: Record<MapTravelMode, number>;
+};
+
+function estimateDistanceKm(from: { lat: number; lng: number }, to: { lat: number; lng: number }): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const dLat = toRad(to.lat - from.lat);
+  const dLng = toRad(to.lng - from.lng);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(from.lat)) * Math.cos(toRad(to.lat)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+function getSegmentHeuristic(fromStop: TripStop, toStop: TripStop): SegmentHeuristic {
+  const distanceKm = estimateDistanceKm(fromStop.location, toStop.location);
+
+  const walkingMins = Math.max(6, Math.round((distanceKm / 4.8) * 60));
+  const transitMins = Math.max(8, Math.round((distanceKm / 22) * 60) + 6);
+  const drivingMins = Math.max(6, Math.round((distanceKm / 28) * 60) + 4);
+
+  let recommendedMode: MapTravelMode;
+  if (distanceKm <= 1.2) {
+    recommendedMode = "WALKING";
+  } else if (distanceKm <= 5) {
+    recommendedMode = "TRANSIT";
+  } else {
+    recommendedMode = "DRIVING";
+  }
+
+  return {
+    distanceKm,
+    recommendedMode,
+    minutesByMode: {
+      WALKING: walkingMins,
+      TRANSIT: transitMins,
+      DRIVING: drivingMins,
+    },
+  };
+}
+
+function getTransitLabel(fromStop: TripStop, toStop: TripStop): string {
+  const heuristic = getSegmentHeuristic(fromStop, toStop);
+  if (heuristic.recommendedMode === "WALKING") {
+    return `🚶 步行 ${heuristic.minutesByMode.WALKING} 分`;
+  }
+  if (heuristic.recommendedMode === "TRANSIT") {
+    return `🚊 捷運/公車 ${heuristic.minutesByMode.TRANSIT} 分`;
+  }
+  return `🚗 車行 ${heuristic.minutesByMode.DRIVING} 分`;
 }
 
 function isHiddenSpot(stop: TripStop): boolean {
@@ -84,10 +137,10 @@ const MOCK_COMMENTS = [
   { name: "Sophia", avatar: "👩‍🦱", time: "2 週前", text: "帶外國朋友來，他們都超喜歡！超讚 🎉", verified: false },
 ];
 
-const TRANSPORT_OPTIONS = [
-  { label: "步行 8 分鐘", detail: "🚶 8 分鐘" },
-  { label: "捷運 5 分鐘", detail: "🚶 1 分鐘 → 🚊 大橋頭 → 🚶 2 分鐘" },
-  { label: "公車 10 分鐘", detail: "🚌 公車 → 🚶 步行 2 分鐘" },
+const TRANSPORT_OPTIONS: Array<{ mode: MapTravelMode; label: string; icon: string }> = [
+  { mode: "WALKING", label: "步行", icon: "🚶" },
+  { mode: "TRANSIT", label: "捷運/公車", icon: "🚊🚌" },
+  { mode: "DRIVING", label: "計程車/開車", icon: "🚗" },
 ];
 
 // ── PhotoCard ─────────────────────────────────────────────────────────────────
@@ -218,7 +271,19 @@ function SpotDetailPanel({ stop, enrichedPlace }: {
 
 // ── TransportPanel ────────────────────────────────────────────────────────────
 
-function TransportPanel({ fromStop, toStop }: { fromStop: TripStop; toStop: TripStop }) {
+function TransportPanel({
+  fromStop,
+  toStop,
+  transportMode,
+  onTransportModeChange,
+}: {
+  fromStop: TripStop;
+  toStop: TripStop;
+  transportMode: MapTravelMode;
+  onTransportModeChange: (mode: MapTravelMode) => void;
+}) {
+  const heuristic = getSegmentHeuristic(fromStop, toStop);
+
   return (
     <div className="px-5 pt-5 pb-16">
       {/* Route header */}
@@ -227,26 +292,76 @@ function TransportPanel({ fromStop, toStop }: { fromStop: TripStop; toStop: Trip
         <p className="text-[16px] font-semibold text-[#141414]">{fromStop.name} → {toStop.name}</p>
       </div>
 
-      {/* Map placeholder */}
-      <div className="rounded-[14px] flex flex-col items-center justify-center mb-5"
-        style={{ height: 255, background: "#b8d1bf", boxShadow: "0px 2px 8px rgba(0,0,0,0.05)" }}>
-        <p className="font-normal text-[20px]" style={{ color: "rgba(255,255,255,0.75)" }}>地圖</p>
-        <p style={{ fontSize: 40 }}>🗺️</p>
-      </div>
+      <GoogleMap
+        className="rounded-[14px] mb-5 h-[255px]"
+        center={{
+          lat: (fromStop.location.lat + toStop.location.lat) / 2,
+          lng: (fromStop.location.lng + toStop.location.lng) / 2,
+        }}
+        zoom={14}
+        markers={[
+          {
+            id: fromStop.stop_id,
+            title: fromStop.name,
+            label: "A",
+            color: "#3abdff",
+            position: fromStop.location,
+          },
+          {
+            id: toStop.stop_id,
+            title: toStop.name,
+            label: "B",
+            color: "#ff7a59",
+            position: toStop.location,
+          },
+        ]}
+        segment={{
+          from: fromStop.location,
+          to: toStop.location,
+          travelMode: transportMode,
+          color: "#3abdff",
+        }}
+      />
 
       {/* Transport options */}
       <p className="text-[13px] font-semibold text-[#141414] mb-3">選擇交通方式</p>
+      <p className="text-[11px] mb-3" style={{ color: "#777" }}>
+        兩地直線距離約 {heuristic.distanceKm.toFixed(1)} 公里，已用簡易 heuristic 推薦路線。
+      </p>
       <div className="flex flex-col gap-3 mb-5">
-        {TRANSPORT_OPTIONS.map(opt => (
-          <button key={opt.label} className="w-full bg-white rounded-[12px] text-left overflow-hidden"
-            style={{ boxShadow: "0px 4px 16px rgba(0,0,0,0.05)", cursor: "pointer" }}>
+        {TRANSPORT_OPTIONS.map((opt) => {
+          const active = transportMode === opt.mode;
+          const recommended = heuristic.recommendedMode === opt.mode;
+          const mins = heuristic.minutesByMode[opt.mode];
+          return (
+            <button
+              key={opt.mode}
+              className="w-full bg-white rounded-[12px] text-left overflow-hidden"
+              style={{
+                boxShadow: "0px 4px 16px rgba(0,0,0,0.05)",
+                cursor: "pointer",
+                border: `2px solid ${active ? "#3abdff" : "transparent"}`,
+              }}
+              onClick={() => onTransportModeChange(opt.mode)}
+            >
             <div className="px-6 pt-5 pb-4">
-              <p className="text-[13px] font-semibold text-[#141414] mb-3">{opt.label}</p>
+              <div className="flex items-center gap-2 mb-3">
+                <p className="text-[13px] font-semibold text-[#141414]">{opt.label}</p>
+                {recommended ? (
+                  <span
+                    className="px-2 h-[20px] rounded-[10px] text-[10px] font-semibold flex items-center"
+                    style={{ background: "#e0f4ff", color: "#3abdff" }}
+                  >
+                    推薦
+                  </span>
+                ) : null}
+              </div>
               <div className="border-t mb-3" style={{ borderColor: "#f0f0f0" }} />
-              <p className="text-[13px] font-semibold text-[#141414]">{opt.detail}</p>
+              <p className="text-[13px] font-semibold text-[#141414]">{opt.icon} 約 {mins} 分鐘</p>
             </div>
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {/* More routes button */}
@@ -271,6 +386,7 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
   const [enrichData, setEnrichData] = useState<EnrichResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [panel, setPanel] = useState<PanelState>({ type: "spot", stopIdx: 0 });
+  const [transportMode, setTransportMode] = useState<MapTravelMode>("TRANSIT");
   const [panelVisible, setPanelVisible] = useState(false);
   const [mobileTab, setMobileTab] = useState<"itinerary" | "detail">("detail");
   const transitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -291,6 +407,11 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
   };
 
   const handleTransitClick = (idx: number) => {
+    const fromStop = orderedStops[idx];
+    const toStop = orderedStops[idx + 1];
+    if (fromStop && toStop) {
+      setTransportMode(getSegmentHeuristic(fromStop, toStop).recommendedMode);
+    }
     switchPanel({ type: "transport", stopIdx: idx });
     setMobileTab("detail");
   };
@@ -500,7 +621,7 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
                             }}
                             onClick={() => handleTransitClick(i)}
                           >
-                            {getTransitLabel(i)}
+                            {orderedStops[i + 1] ? getTransitLabel(stop, orderedStops[i + 1]) : "🚶 交通資訊"}
                           </button>
                         </div>
                       )}
@@ -529,6 +650,8 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
                 <TransportPanel
                   fromStop={orderedStops[panel.stopIdx]}
                   toStop={orderedStops[panel.stopIdx + 1]}
+                  transportMode={transportMode}
+                  onTransportModeChange={setTransportMode}
                 />
               ) : null}
             </div>
@@ -614,7 +737,7 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
                           <button className="h-[26px] px-3 rounded-[13px] text-[11px]"
                             style={{ background: "#f2f2f2", color: "#999" }}
                             onClick={() => handleTransitClick(i)}>
-                            {getTransitLabel(i)}
+                            {orderedStops[i + 1] ? getTransitLabel(stop, orderedStops[i + 1]) : "🚶 交通資訊"}
                           </button>
                         </div>
                       )}
@@ -632,6 +755,8 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
               <TransportPanel
                 fromStop={orderedStops[panel.stopIdx]}
                 toStop={orderedStops[panel.stopIdx + 1]}
+                transportMode={transportMode}
+                onTransportModeChange={setTransportMode}
               />
             ) : null}
           </div>
