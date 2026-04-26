@@ -260,8 +260,8 @@ function ExtensionView({ onSwitch }: { onSwitch: () => void }) {
         style={{ background: CONIC, minHeight: 490 }}
       >
         <div className="flex-1 pt-2">
-          <h1 className="text-[76px] font-bold leading-tight text-white">訂房守門員</h1>
-          <h1 className="text-[76px] font-bold leading-tight" style={{ color: "#fec728" }}>自己找，我幫你把關。</h1>
+          <h1 className="text-[76px] font-bold leading-tight text-white" style={{ textShadow: "0 2px 18px rgba(0,0,0,0.22), 0 6px 40px rgba(0,0,0,0.12)" }}>訂房守門員</h1>
+          <h1 className="text-[76px] font-bold leading-tight" style={{ color: "#fec728", textShadow: "0 2px 18px rgba(254,199,40,0.45), 0 6px 40px rgba(0,0,0,0.14)" }}>自己找，我幫你把關。</h1>
           <p className="mt-6 text-[17px] max-w-[540px]" style={{ color: "#8c8c8c" }}>瀏覽訂房網站時，Taibear 插件即時比對合法資料庫，提前揪出非法業者。</p>
           <div className="flex gap-4 mt-8">
             <button onClick={onSwitch} className="h-[52px] px-8 rounded-[13px] text-[15px] transition-colors hover:bg-black/5" style={{ border: "1.5px solid #616161", color: "#a6a6a6" }}>找合法住宿 →</button>
@@ -439,8 +439,8 @@ function HotelsView({ onSwitch, showExtensionBtn = true }: { onSwitch: () => voi
         style={{ background: CONIC, minHeight: 320 }}
       >
         <div className="flex-1">
-          <h1 className="text-[42px] md:text-[76px] font-bold leading-tight text-white">安心住宿</h1>
-          <h1 className="text-[42px] md:text-[76px] font-bold leading-tight" style={{ color: "#ffd26a" }}>從這裡開始。</h1>
+          <h1 className="text-[42px] md:text-[76px] font-bold leading-tight text-white" style={{ textShadow: "0 2px 18px rgba(0,0,0,0.22), 0 6px 40px rgba(0,0,0,0.12)" }}>安心住宿</h1>
+          <h1 className="text-[42px] md:text-[76px] font-bold leading-tight" style={{ color: "#ffd26a", textShadow: "0 2px 18px rgba(255,210,106,0.45), 0 6px 40px rgba(0,0,0,0.14)" }}>從這裡開始。</h1>
           <p className="mt-4 text-[15px] md:text-[17px] max-w-[540px]" style={{ color: "#8c8c8c" }}>Taibear 會呼叫後端 /api/search-hotels，使用 LLM 搜尋並排序最符合你的旅宿。</p>
           <div className="flex flex-wrap gap-3 mt-6">
             <button
