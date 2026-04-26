@@ -11,6 +11,10 @@
 
 ---
 
+<video src="docs/videos/demo.mp4" controls width="600"></video>
+
+---
+
 ## 🔴 問題背景
 
 臺北作為國際觀光城市，每年吸引大量國內外
@@ -57,12 +61,12 @@
 
 <table>
   <tr>
-    <td align="center"><img src="screenshots/safe-stay-legal.jpg" alt="Booking.com 合法認證" width="100%" /><br/><sub>Booking.com — 合法旅宿認證</sub></td>
-    <td align="center"><img src="screenshots/safe-stay-warning.jpg" alt="Airbnb 風險警示" width="100%" /><br/><sub>Airbnb — 違規風險警示</sub></td>
+    <td align="center"><img src="docs/safe-stay-legal.jpg" alt="Booking.com 合法認證" width="100%" /><br/><sub>Booking.com — 合法旅宿認證</sub></td>
+    <td align="center"><img src="docs/safe-stay-warning.jpg" alt="Airbnb 風險警示" width="100%" /><br/><sub>Airbnb — 違規風險警示</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="screenshots/safe-stay-input.png" alt="Safe Stay 輸入偏好" width="100%" /><br/><sub>輸入地點與偏好</sub></td>
-    <td align="center"><img src="screenshots/safe-stay-results.png" alt="Safe Stay 合法住宿推薦" width="100%" /><br/><sub>合法住宿推薦結果</sub></td>
+    <td align="center"><img src="docs/safe-stay-input.png" alt="Safe Stay 輸入偏好" width="100%" /><br/><sub>輸入地點與偏好</sub></td>
+    <td align="center"><img src="docs/safe-stay-results.png" alt="Safe Stay 合法住宿推薦" width="100%" /><br/><sub>合法住宿推薦結果</sub></td>
   </tr>
 </table>
 
@@ -81,8 +85,8 @@
 
 <table>
   <tr>
-    <td align="center"><img src="screenshots/play-taipei-trip.png" alt="Play Taipei AI 行程規劃" width="100%" /><br/><sub>AI 個人化行程規劃</sub></td>
-    <td align="center"><img src="screenshots/play-taipei-hidden.png" alt="Play Taipei 隱藏景點投稿" width="100%" /><br/><sub>我家巷口的隱藏景點</sub></td>
+    <td align="center"><img src="docs/play-taipei-trip.png" alt="Play Taipei AI 行程規劃" width="100%" /><br/><sub>AI 個人化行程規劃</sub></td>
+    <td align="center"><img src="docs/play-taipei-hidden.png" alt="Play Taipei 隱藏景點投稿" width="100%" /><br/><sub>我家巷口的隱藏景點</sub></td>
   </tr>
 </table>
 
