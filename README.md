@@ -4,9 +4,6 @@
 >
 > 我們做了 **合法住宿核實 + AI 個人化行程規劃** 給 **在台旅客與在地年輕人** 用，解決「違法旅宿風險 × 旅遊資訊碎片化 × 隱藏景點無人知」。
 
-![2026 YTP 黑客松](https://img.shields.io/badge/2026_YTP_電客松-賽題A_行旅台北-3ABDFF?style=flat-square)
-![AI 智慧旅遊](https://img.shields.io/badge/AI_智慧旅遊高峰-臺灣旅市局-5edcb4?style=flat-square)
-
 ---
 
 ## 🔴 問題 → 解法
@@ -40,6 +37,10 @@
 
 <table>
   <tr>
+    <td align="center"><img src="screenshots/safe-stay-legal.jpg" alt="Booking.com 合法認證" width="100%" /><br/><sub>Booking.com — 合法旅宿認證</sub></td>
+    <td align="center"><img src="screenshots/safe-stay-warning.jpg" alt="Airbnb 風險警示" width="100%" /><br/><sub>Airbnb — 違規風險警示</sub></td>
+  </tr>
+  <tr>
     <td align="center"><img src="screenshots/safe-stay-input.png" alt="Safe Stay 輸入偏好" width="100%" /><br/><sub>輸入地點與偏好</sub></td>
     <td align="center"><img src="screenshots/safe-stay-results.png" alt="Safe Stay 合法住宿推薦" width="100%" /><br/><sub>合法住宿推薦結果</sub></td>
   </tr>
@@ -55,6 +56,13 @@
 - **多源資料整合** — PTT、Google Maps、Facebook、Instagram 資料驗真景點推薦，搭配 AI prompt 生成可執行探索行程
 - **我家巷弄** — 用戶自由投稿當地秘境景點，點數隱藏景點可見社群推薦數、真實照、秘笈；過隱藏景點專屬交流功能
 - **翻轉有信度** — 辨識合法住宿後，自動媒合行 10 分鐘步行圈的巷弄景點，逃出框框的人的世界有信度，被推薦景點若旅客「感謝推薦」時，上傳者也會收到解鎖通知
+
+<table>
+  <tr>
+    <td align="center"><img src="screenshots/play-taipei-trip.png" alt="Play Taipei AI 行程規劃" width="100%" /><br/><sub>AI 個人化行程規劃</sub></td>
+    <td align="center"><img src="screenshots/play-taipei-hidden.png" alt="Play Taipei 隱藏景點投稿" width="100%" /><br/><sub>我家巷口的隱藏景點</sub></td>
+  </tr>
+</table>
 
 ---
 
