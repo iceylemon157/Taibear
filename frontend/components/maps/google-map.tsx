@@ -10,6 +10,7 @@ export type MapMarker = {
   title: string;
   label?: string;
   color?: string;
+  scale?: number;
 };
 
 type MapSegment = {
@@ -58,7 +59,7 @@ async function fetchMapsApiKey(): Promise<string> {
   return String(payload.apiKey);
 }
 
-function ensureGoogleMapsApi(): Promise<any> {
+export function ensureGoogleMapsApi(): Promise<any> {
   if (mapsApiPromise) {
     return mapsApiPromise;
   }
@@ -87,7 +88,7 @@ function ensureGoogleMapsApi(): Promise<any> {
         }
 
         const script = document.createElement("script");
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places&language=zh-TW&region=TW`;
         script.async = true;
         script.defer = true;
         script.setAttribute("data-google-maps", "true");
@@ -220,13 +221,13 @@ export function GoogleMap({
         title: marker.title,
         label: marker.label,
         icon: marker.color
-          ? {
+            ? {
               path: maps.SymbolPath.CIRCLE,
-              scale: 8,
+              scale: marker.scale ?? 8,
               fillColor: marker.color,
               fillOpacity: 1,
               strokeColor: "#ffffff",
-              strokeWeight: 2,
+              strokeWeight: marker.scale && marker.scale > 10 ? 3 : 2,
             }
           : undefined,
       });

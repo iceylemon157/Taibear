@@ -358,11 +358,15 @@ export default function ExplorePage() {
         id: place.id,
         title: place.name,
         label: place.source === "trip" ? String(tripPlaces.findIndex((p) => p.id === place.id) + 1) : undefined,
-        color: place.id === selectedPlace?.id ? "#ff6b6b" : place.color,
+        color: place.id === selectedPlace?.id ? "#ff2d55" : place.color,
+        scale: place.source === "search" ? 12 : 8,
         position: place.position,
       })),
     [selectedPlace?.id, tripPlaces, visiblePlaces]
   );
+
+  const mapCenter = selectedPlace?.position ?? TAIPEI_CENTER;
+  const mapZoom = hasActiveSearchResult ? 16 : 12;
 
   const tripRouteSegments = useMemo<MapSegment[]>(() => {
     if (hasActiveSearchResult || activeFilter !== "當前行程" || tripPlaces.length < 2) {
@@ -398,8 +402,8 @@ export default function ExplorePage() {
     <div className="relative w-full h-screen overflow-hidden" style={{ backgroundColor: "#dbe9d8" }}>
       <GoogleMap
         className="absolute inset-0"
-        center={TAIPEI_CENTER}
-        zoom={12}
+        center={mapCenter}
+        zoom={mapZoom}
         markers={markers}
         segments={tripRouteSegments}
         onMarkerClick={setSelectedPinId}
