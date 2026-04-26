@@ -8,6 +8,7 @@
     "https://www.booking.com/*",
     "https://www.airbnb.com/*",
     "https://www.airbnb.com.tw/*",
+    "http://20.18.161.44:3000/*",
     "http://localhost:8001/*"
   ],
   "background": {
