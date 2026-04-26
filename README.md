@@ -4,7 +4,7 @@
 >
 > 我們做了 **合法住宿核實 + AI 個人化行程規劃** 給 **在台旅客與在地年輕人** 用，解決「違法旅宿風險 × 旅遊資訊碎片化 × 隱藏景點無人知」。
 
-![2026 YTP 電客松](https://img.shields.io/badge/2026_YTP_電客松-賽題A_行旅台台-3ABDFF?style=flat-square)
+![2026 YTP 黑客松](https://img.shields.io/badge/2026_YTP_電客松-賽題A_行旅台北-3ABDFF?style=flat-square)
 ![AI 智慧旅遊](https://img.shields.io/badge/AI_智慧旅遊高峰-臺灣旅市局-5edcb4?style=flat-square)
 
 ---
