@@ -30,7 +30,6 @@ from pathlib import Path
 import httpx
 
 import config
-from .gemini_client import call_with_fallback
 
 PLACES_BASE = "https://maps.googleapis.com/maps/api/place"
 PHOTO_BASE = "https://maps.googleapis.com/maps/api/place/photo"
@@ -152,82 +151,40 @@ def _download_photo(photo_ref: str, save_path: Path, max_width: int = 1200) -> b
         return False
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Gemini — 短影片字幕生成
-# ═══════════════════════════════════════════════════════════════════════════════
-
-_CAPTION_PROMPT = """你是一位短影片字幕文案專家，擅長台灣年輕人的說話風格。
-
-請根據以下 Google Maps 評論，為景點「{place_name}」生成短影片字幕。
-
-【規則】
-- 共生成 2–3 段字幕
-- 每段嚴格不超過 20 個中文字（不含 emoji、標點符號）
-- 每段加入 1–2 個貼切的 emoji（放在句首或句尾）
-- 優點要自然融入，讓人看了想去
-- 缺點用委婉方式帶過（例如：「假日人潮多建議平日來」、「記得提早訂位」、「人氣景點稍有排隊」）
-- 語氣輕鬆活潑，像朋友在分享，不要太正式
-- 只回傳 JSON 字串陣列，不含任何說明文字或 markdown
-
-【最新 5 則評論】
-{newest_reviews}
-
-【最熱門 5 則評論】
-{relevant_reviews}
-
-範例格式（僅供參考結構，請根據實際評論內容生成）：
-["✨ 台北最文青的秘密基地", "📸 每個角落都是打卡點", "🌿 假日人潮多建議平日來"]
-
-請現在生成「{place_name}」的字幕："""
-
-
 def _generate_captions(
     place_name: str,
     newest: list[dict],
     relevant: list[dict],
 ) -> list[str]:
     """
-    呼叫 Gemini 2.5 Flash 根據評論生成 2-3 段短影片字幕。
+    根據評論內容生成 2-3 段簡短字幕（不使用 LLM）。
 
     Returns:
         字幕清單，每段 < 20 中文字並含 emoji。
     """
-    raw = ""
-    try:
-        prompt = _CAPTION_PROMPT.format(
-            place_name=place_name,
-            newest_reviews=_format_reviews_for_prompt(newest),
-            relevant_reviews=_format_reviews_for_prompt(relevant),
-        )
-        raw = call_with_fallback(
-            "caption",
-            lambda client, model: client.models.generate_content(
-                model=model,
-                contents=prompt,
-            ).text or "",
-        )
-        raw = raw.strip()
-        # 去除可能的 markdown fence
-        raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.MULTILINE).strip()
-        parsed = json.loads(raw)
-        if isinstance(parsed, list) and parsed:
-            return [str(c) for c in parsed]
-    except json.JSONDecodeError:
-        # LLM 有時會回傳格式略有不同，嘗試用 regex 提取陣列
-        match = re.search(r"\[.*?\]", raw, re.DOTALL)
-        if match:
-            try:
-                parsed = json.loads(match.group())
-                if isinstance(parsed, list) and parsed:
-                    return [str(c) for c in parsed]
-            except json.JSONDecodeError:
-                pass
-        print("[Enrich]   ⚠ 字幕解析失敗，使用預設值")
-    except Exception as e:
-        print(f"[Enrich]   ⚠ 字幕生成失敗 ({place_name}): {e}")
+    review_text = "\n".join(
+        [r.get("text", "") for r in (newest + relevant) if r.get("text")]
+    ).lower()
 
-    # Fallback
-    return [f"✨ {place_name}", "📍 值得一訪的好地方"]
+    captions: list[str] = [f"✨ {place_name}"]
+
+    if any(word in review_text for word in ["夜景", "夕陽", "風景", "view", "景色"]):
+        captions.append("🌇 景色真的很加分")
+    elif any(word in review_text for word in ["美食", "好吃", "餐", "小吃", "飲料"]):
+        captions.append("🍜 吃喝體驗很可以")
+    elif any(word in review_text for word in ["拍照", "打卡", "照片", "攝影"]):
+        captions.append("📸 拍照打卡很適合")
+    elif any(word in review_text for word in ["交通", "捷運", "公車", "方便", "停車"]):
+        captions.append("🚇 交通算是方便")
+    else:
+        captions.append("📍 值得安排停留")
+
+    if any(word in review_text for word in ["人潮", "排隊", "假日", "熱門"]):
+        captions.append("🕒 假日人多建議提早")
+    else:
+        captions.append("🧭 半天行程剛剛好")
+
+    return captions[:3]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -299,6 +256,7 @@ def enrich_place(
 def enrich_routes(
     routes: list[dict],
     base_output_dir: str | Path | None = None,
+    max_places_per_route: int | None = None,
 ) -> dict:
     """
     對 3 條路線的所有景點執行 enrichment，儲存照片與評論摘要至本地。
@@ -348,7 +306,13 @@ def enrich_routes(
 
         enriched_places: list[dict] = []
 
-        for wp in waypoints:
+        limited_waypoints = (
+            waypoints[:max_places_per_route]
+            if max_places_per_route and max_places_per_route > 0
+            else waypoints
+        )
+
+        for wp in limited_waypoints:
             place_name = wp.get("name", "").strip()
             place_id = wp.get("place_id", "").strip()
 

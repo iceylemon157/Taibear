@@ -260,8 +260,8 @@ function ExtensionView({ onSwitch }: { onSwitch: () => void }) {
         style={{ background: CONIC, minHeight: 490 }}
       >
         <div className="flex-1 pt-2">
-          <h1 className="text-[76px] font-bold leading-tight text-white">訂房守門員</h1>
-          <h1 className="text-[76px] font-bold leading-tight" style={{ color: "#fec728" }}>自己找，我幫你把關。</h1>
+          <h1 className="text-[76px] font-bold leading-tight text-white" style={{ textShadow: "0 2px 18px rgba(0,0,0,0.22), 0 6px 40px rgba(0,0,0,0.12)" }}>訂房守門員</h1>
+          <h1 className="text-[76px] font-bold leading-tight" style={{ color: "#fec728", textShadow: "0 2px 18px rgba(254,199,40,0.45), 0 6px 40px rgba(0,0,0,0.14)" }}>自己找，我幫你把關。</h1>
           <p className="mt-6 text-[17px] max-w-[540px]" style={{ color: "#8c8c8c" }}>瀏覽訂房網站時，Taibear 插件即時比對合法資料庫，提前揪出非法業者。</p>
           <div className="flex gap-4 mt-8">
             <button onClick={onSwitch} className="h-[52px] px-8 rounded-[13px] text-[15px] transition-colors hover:bg-black/5" style={{ border: "1.5px solid #616161", color: "#a6a6a6" }}>找合法住宿 →</button>
@@ -287,6 +287,82 @@ function ExtensionView({ onSwitch }: { onSwitch: () => void }) {
               <p className="text-[13px] leading-[22px]" style={{ color: "#999" }}>{step.desc}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="px-[72px] py-10" style={{ background: "#f5f5f5" }}>
+        <div className="flex items-baseline gap-2 mb-6">
+          <h2 className="text-[20px] font-bold text-[#141414]">相關新聞報導</h2>
+          <p className="text-[12px]" style={{ color: "#808080" }}>點擊閱讀完整報導</p>
+        </div>
+        <div className="grid grid-cols-3 gap-6">
+          <a
+            href="https://www.cna.com.tw/project/20220930-illegal-bnb/"
+            target="_blank"
+            rel="noreferrer"
+            className="bg-white rounded-[16px] overflow-hidden block hover:shadow-lg transition-shadow"
+            style={{ boxShadow: "0px 4px 14px 0px rgba(0,0,0,0.08)" }}
+          >
+            <div className="relative h-[130px] flex items-center justify-center text-[56px]" style={{ background: "#f2e0e0" }}>
+              📰
+              <div className="absolute top-[14px] left-[14px] h-[22px] px-2 rounded-[6px] flex items-center" style={{ background: "#e02e2e" }}>
+                <span className="text-white text-[10px] font-bold">深度</span>
+              </div>
+            </div>
+            <div className="px-[14px] py-4">
+              <p className="text-[10px] mb-1" style={{ color: "#808080" }}>中央社  ·  2022.09.30</p>
+              <p className="text-[14px] font-bold text-[#141414] leading-[20px] mb-2">你住過的 Airbnb 其實是非法旅宿？<br />雙北近 9 成房源不合法</p>
+              <p className="text-[11px] leading-[16px] mb-3" style={{ color: "#808080" }}>記者深入調查發現，台北、新北兩市掛牌出租的 Airbnb 房源中，近九成無任何合法登記，租客面臨無法律保障的住宿風險⋯</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold" style={{ color: "#e02e2e" }}>閱讀更多 →</p>
+                <p className="text-[9px]" style={{ color: "#bfbfbf" }}>cna.com.tw</p>
+              </div>
+            </div>
+          </a>
+
+          <a
+            href="https://wholeway.taiwanstay.net.tw/"
+            target="_blank"
+            rel="noreferrer"
+            className="bg-white rounded-[16px] overflow-hidden block hover:shadow-lg transition-shadow"
+            style={{ boxShadow: "0px 4px 14px 0px rgba(0,0,0,0.08)" }}
+          >
+            <div className="relative h-[130px] flex items-center justify-center text-[56px]" style={{ background: "#e0f5e5" }}>
+              🔍
+              <div className="absolute top-[14px] left-[14px] h-[22px] px-2 rounded-[6px] flex items-center" style={{ background: "#1ebf52" }}>
+                <span className="text-white text-[10px] font-bold">官方</span>
+              </div>
+            </div>
+            <div className="px-[14px] py-4">
+              <p className="text-[10px] mb-1" style={{ color: "#808080" }}>台灣旅宿網  ·  2024</p>
+              <p className="text-[14px] font-bold text-[#141414] leading-[20px] mb-2">旅宿業查詢系統<br />合法登記查驗平台</p>
+              <p className="text-[11px] leading-[16px] mb-3" style={{ color: "#808080" }}>內政部觀光署建置之合法旅宿查驗系統，可輸入旅宿名稱或地址，即時確認是否領有合法登記證⋯</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold" style={{ color: "#1ebf52" }}>閱讀更多 →</p>
+                <p className="text-[9px]" style={{ color: "#bfbfbf" }}>taiwanstay.net.tw</p>
+              </div>
+            </div>
+          </a>
+
+          <div className="bg-white rounded-[16px] overflow-hidden" style={{ boxShadow: "0px 4px 14px 0px rgba(0,0,0,0.08)" }}>
+            <div className="relative h-[130px] flex items-center justify-center" style={{ background: "#e0f2ff" }}>
+              <div className="w-[53px] h-[53px] rounded-[12px] overflow-hidden flex-shrink-0" style={{ background: "#3a6329" }}>
+                <img src="/taibear-logo.png" alt="Taibear" className="w-full h-full object-cover" />
+              </div>
+              <div className="absolute top-[14px] left-[14px] h-[22px] px-2 rounded-[6px] flex items-center" style={{ background: "#3abdff" }}>
+                <span className="text-white text-[10px] font-bold">推薦</span>
+              </div>
+            </div>
+            <div className="px-[14px] py-4">
+              <p className="text-[10px] mb-1" style={{ color: "#808080" }}>Taibear  ·  2025</p>
+              <p className="text-[14px] font-bold text-[#141414] leading-[20px] mb-2">一鍵掃描，訂房前<br />即時確認合法狀態</p>
+              <p className="text-[11px] leading-[16px] mb-3" style={{ color: "#808080" }}>安裝 Taibear 訂房守門員擴充，在 Airbnb、Booking、Agoda 瀏覽時自動顯示合法狀態，讓訂房決策更有保障⋯</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-semibold" style={{ color: "#3abdff" }}>閱讀更多 →</p>
+                <p className="text-[9px]" style={{ color: "#bfbfbf" }}>taibear.app</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </div>
@@ -439,8 +515,8 @@ function HotelsView({ onSwitch, showExtensionBtn = true }: { onSwitch: () => voi
         style={{ background: CONIC, minHeight: 320 }}
       >
         <div className="flex-1">
-          <h1 className="text-[42px] md:text-[76px] font-bold leading-tight text-white">安心住宿</h1>
-          <h1 className="text-[42px] md:text-[76px] font-bold leading-tight" style={{ color: "#ffd26a" }}>從這裡開始。</h1>
+          <h1 className="text-[42px] md:text-[76px] font-bold leading-tight text-white" style={{ textShadow: "0 2px 18px rgba(0,0,0,0.22), 0 6px 40px rgba(0,0,0,0.12)" }}>安心住宿</h1>
+          <h1 className="text-[42px] md:text-[76px] font-bold leading-tight" style={{ color: "#ffd26a", textShadow: "0 2px 18px rgba(255,210,106,0.45), 0 6px 40px rgba(0,0,0,0.14)" }}>從這裡開始。</h1>
           <p className="mt-4 text-[15px] md:text-[17px] max-w-[540px]" style={{ color: "#8c8c8c" }}>Taibear 會呼叫後端 /api/search-hotels，使用 LLM 搜尋並排序最符合你的旅宿。</p>
           <div className="flex flex-wrap gap-3 mt-6">
             <button
@@ -649,27 +725,8 @@ function BrowserMockup() {
           <span className="text-[10px]" style={{ color: "#808080" }}>booking.com/hotel/tw/...</span>
         </div>
       </div>
-      <div className="mx-4 mt-2 mb-4 flex gap-2 relative" style={{ height: 340 }}>
-        <div className="w-[160px] rounded-[8px] overflow-hidden p-2 flex flex-col gap-2" style={{ background: "#262626" }}>
-          <p className="text-[9px]" style={{ color: "#666" }}>Booking.com</p>
-          <div className="h-[80px] rounded-[6px] flex items-center justify-center text-[32px]" style={{ background: "#334d73" }}>🏨</div>
-          <p className="text-[10px] font-semibold text-white">台北商旅精選</p>
-          <p className="text-[9px]" style={{ color: "#808080" }}>信義區・近101</p>
-          <p className="text-[11px] font-bold" style={{ color: "#fec728" }}>NT$3,200</p>
-        </div>
-        <div className="absolute right-0 top-4 w-[164px] rounded-[16px] bg-white p-3 flex flex-col gap-2" style={{ boxShadow: "0px 8px 24px 0px rgba(0,0,0,0.3)" }}>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-[8px] flex items-center justify-center text-[18px] flex-shrink-0" style={{ background: "#fff6d8" }}>🛡️</div>
-            <div><p className="text-[11px] font-bold text-[#141414]">訂房守門員</p><p className="text-[10px]" style={{ color: "#999" }}>Taibear</p></div>
-          </div>
-          <div className="h-px bg-gray-100" />
-          <div className="rounded-[10px] px-2 py-2" style={{ background: "#e5f7e8" }}>
-            <p className="text-[11px] font-bold" style={{ color: "#2ebf59" }}>✓ 合法房源</p>
-            <p className="text-[9px] leading-[14px] mt-0.5" style={{ color: "#338033" }}>台北市旅館業登記<br />證 NO.A0234</p>
-          </div>
-          <button className="w-full h-7 rounded-[8px] text-[10px] font-semibold text-white" style={{ background: "#3abdff" }}>加入 Taibear 行程 →</button>
-          <p className="text-[9px] text-center" style={{ color: "#999" }}>已掃描 2,341 間・更新於今日</p>
-        </div>
+      <div className="mx-4 mt-2 mb-4 flex items-center justify-center">
+        <img src="/booking.png" alt="Taibear 訂房守門員示意" className="w-full rounded-[12px] object-contain" />
       </div>
     </div>
   );

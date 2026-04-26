@@ -2,10 +2,16 @@
 main.py — YTP Planning Agent FastAPI 服務入口
 
 Endpoints:
-  GET  /health   — 健康檢查（不需 API key）
-  POST /search   — 關鍵字搜尋景點，回傳 SpotResult
-  POST /plan     — 接收 SpotResult → 3 條路線
-  POST /enrich   — 接收路線 JSON → 評論 + 照片 + 字幕
+  GET  /health                  — 健康檢查（不需 API key）
+  POST /search                  — 關鍵字搜尋景點，回傳 SpotResult
+  POST /plan                    — 接收 SpotResult → 3 條路線
+  POST /geocode                 — 地名批次查詢座標與 place_id
+  POST /enrich                  — 接收路線 JSON → 評論 + 照片 + 字幕
+  GET  /api/recommend-hotels    — 地點 + 標籤推薦旅宿（不需 API key）
+  POST /api/recommend-hotels    — 自然語言 Gemini 推薦旅宿（不需 API key）
+  GET  /api/check-hotel         — 驗證旅宿合法性（不需 API key）
+  POST /api/save-hotel          — 收藏旅宿（不需 API key）
+  GET  /api/saved-hotels        — 取得收藏旅宿清單（不需 API key）
 """
 
 import asyncio
@@ -20,6 +26,7 @@ from urllib.parse import quote
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Form, HTTPException, Security, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security.api_key import APIKeyHeader
 import httpx
 from pydantic import BaseModel, Field
@@ -43,6 +50,7 @@ from db.user_loader import load_preference_from_db
 from agent.planner import run_planner
 from agent.preprocessor import preprocess
 from agent.search_pipeline import run as run_search
+from agent.tools import geocode_places
 from schemas import (
     HiddenSpotDetail, HiddenSpotListItem, HiddenSpotSubmitResponse,
     PlanResponse, SpotResult,
@@ -100,12 +108,26 @@ class SearchRequest(BaseModel):
 
 class EnrichRequest(BaseModel):
     recommended_routes: list
+    max_places_per_route: int = Field(default=5, ge=1, le=10)
 
 
 class EnrichResponse(BaseModel):
     run_id: str
     output_dir: str
     routes: dict
+
+
+class GeocodeRequest(BaseModel):
+    place_names: list[str]
+
+
+class GeocodeItem(BaseModel):
+    name: str
+    place_id: str
+    lat: float
+    lng: float
+    opening_hours: list[str]
+    found: bool
 
 
 class HotelSearchRequest(BaseModel):
@@ -247,6 +269,21 @@ async def plan(request: SpotResult):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/geocode", response_model=list[GeocodeItem], dependencies=[Security(verify_api_key)])
+async def geocode(request: GeocodeRequest):
+    """
+    批次地名查詢：回傳 place_id + lat/lng + 營業時間。
+    供前端在建立地圖資料時補齊座標。
+    """
+    names = [name.strip() for name in request.place_names if name and name.strip()]
+    if not names:
+        return []
+
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, lambda: geocode_places(names))
+    return [GeocodeItem.model_validate(item) for item in result]
+
+
 @app.post(
     "/enrich", response_model=EnrichResponse, dependencies=[Security(verify_api_key)]
 )
@@ -263,11 +300,39 @@ async def enrich(request: EnrichRequest):
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,
-            lambda: enrich_routes(request.recommended_routes),
+            lambda: enrich_routes(
+                request.recommended_routes,
+                max_places_per_route=request.max_places_per_route,
+            ),
         )
+        for route_id, route_data in result.get("routes", {}).items():
+            for place in route_data.get("places", []):
+                folder = place.get("folder")
+                photos = place.get("photos", [])
+                if not folder or not photos:
+                    place["photo_urls"] = []
+                    continue
+                place["photo_urls"] = [
+                    f"/enrich-assets/{result['run_id']}/{route_id}/{quote(folder)}/{quote(filename)}"
+                    for filename in photos
+                ]
         return EnrichResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/enrich-assets/{run_id}/{route_id}/{folder}/{filename}", dependencies=[Security(verify_api_key)])
+def get_enrich_asset(run_id: str, route_id: str, folder: str, filename: str):
+    """回傳 enrichment 下載的景點照片。"""
+    run_dir = (config.ROUTES_DIR / run_id).resolve()
+    if not run_dir.exists() or run_dir.parent != config.ROUTES_DIR.resolve():
+        raise HTTPException(status_code=404, detail="找不到對應的 enrichment run")
+
+    target = (run_dir / route_id / folder / filename).resolve()
+    if not target.exists() or not str(target).startswith(str(run_dir)):
+        raise HTTPException(status_code=404, detail="找不到照片")
+
+    return FileResponse(target)
 
 
 # ── Hidden Spots ─────────────────────────────────────────────────────────────────

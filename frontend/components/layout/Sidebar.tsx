@@ -4,16 +4,19 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Briefcase, Compass, Home, UserCircle } from "lucide-react";
+import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
+import { useI18n } from "@/lib/i18n/useI18n";
 
 const NAV_ITEMS = [
-  { href: "/trips", label: "旅遊", icon: Briefcase },
-  { href: "/explore", label: "探索", icon: Compass },
-  { href: "/hotels", label: "住宿", icon: Home },
-  { href: "/profile", label: "我的", icon: UserCircle },
+  { href: "/trips", labelKey: "nav.trips", icon: Briefcase },
+  { href: "/explore", labelKey: "nav.explore", icon: Compass },
+  { href: "/hotels", labelKey: "nav.hotels", icon: Home },
+  { href: "/profile", labelKey: "nav.profile", icon: UserCircle },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { t } = useI18n();
 
   return (
     <aside
@@ -38,7 +41,7 @@ export function Sidebar() {
       </div>
 
       <nav className="mt-4 flex flex-col gap-1 px-[20px]">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.map(({ href, labelKey, icon: Icon }) => {
           const active = pathname.startsWith(href);
           return (
             <Link
@@ -56,12 +59,16 @@ export function Sidebar() {
                 className="text-[15px] leading-none"
                 style={{ color: active ? "#fff" : "#999", fontWeight: active ? 600 : 400 }}
               >
-                {label}
+                {t(labelKey)}
               </span>
             </Link>
           );
         })}
       </nav>
+
+      <div className="mt-6 px-[20px]">
+        <LanguageSwitcher />
+      </div>
     </aside>
   );
 }

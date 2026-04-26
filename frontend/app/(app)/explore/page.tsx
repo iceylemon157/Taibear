@@ -1,149 +1,608 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-const FILTERS = ["全部", "餐廳", "景點", "咖啡廳", "交通"];
+import { DEMO_ITINERARIES } from "@/app/data/demo-itineraries";
+import { GoogleMap, ensureGoogleMapsApi, type MapPath } from "@/components/maps/google-map";
+import { buildGoogleMapsDirectionsUrl } from "@/lib/google-maps-url";
+import { useI18n } from "@/lib/i18n/useI18n";
+import { agentService, mapsService, tripsService } from "@/services/api/services";
+import { getSession } from "@/services/auth/session";
+import { getCurrentTripId } from "@/services/trips/currentTrip";
 
-const PINS = [
-  { label: "📍 大稻埕", color: "#3abdff", left: "27%", top: "25%" },
-  { label: "📍 寧夏夜市", color: "#ff9933", left: "43%", top: "34%" },
-  { label: "📍 陽明山", color: "#4db266", left: "63%", top: "16%" },
-  { label: "📍 西門町", color: "#3abdff", left: "35%", top: "47%" },
-  { label: "📍 信義區", color: "#cc4d4d", left: "53%", top: "56%" },
+const FILTERS = [
+  { key: "all", labelKey: "explore.filter.all" },
+  { key: "landmark", labelKey: "explore.filter.landmarks" },
+  { key: "trip", labelKey: "explore.filter.currentTrip" },
 ];
 
-const SELECTED_PLACE = {
-  emoji: "🏮",
-  name: "大稻埕",
-  address: "迪化街一段，大同區",
-  info: "⭐ 4.8  ·  歷史文化  ·  步行友善",
+type ExplorePlace = {
+  id: string;
+  name: string;
+  address: string;
+  info: string;
+  emoji: string;
+  color: string;
+  position: { lat: number; lng: number };
+  source: "landmark" | "trip" | "search";
 };
 
-function MapPin({ label, color, left, top, onClick, active }: {
-  label: string; color: string; left: string; top: string; onClick: () => void; active: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="absolute flex flex-col items-center transition-transform hover:scale-105"
-      style={{ left, top, transform: "translateX(-50%)" }}
-    >
-      <div
-        className="px-3 h-[32px] md:h-[36px] rounded-[20px] flex items-center whitespace-nowrap text-white text-[11px] md:text-[12px] font-semibold"
-        style={{
-          background: color,
-          boxShadow: active ? `0 0 0 3px white, 0 0 0 5px ${color}` : "0px 4px 8px 0px rgba(0,0,0,0.2)",
-        }}
-      >
-        {label}
-      </div>
-      <div style={{ width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: `8px solid ${color}` }} />
-    </button>
-  );
-}
+type PlacePrediction = {
+  placeId: string;
+  mainText: string;
+  secondaryText: string;
+  fullText: string;
+};
+
+const TAIPEI_CENTER = { lat: 25.033, lng: 121.5654 };
+
+const LANDMARK_PLACES: ExplorePlace[] = [
+  {
+    id: "landmark-datong",
+    name: "大稻埕",
+    address: "迪化街一段，大同區",
+    info: "⭐ 4.8 · 歷史文化 · 步行友善",
+    emoji: "🏮",
+    color: "#3abdff",
+    position: { lat: 25.0559, lng: 121.5109 },
+    source: "landmark",
+  },
+  {
+    id: "landmark-ximending",
+    name: "西門町",
+    address: "萬華區武昌街一段",
+    info: "⭐ 4.6 · 商圈逛街 · 夜生活",
+    emoji: "🌃",
+    color: "#f59e0b",
+    position: { lat: 25.0422, lng: 121.5078 },
+    source: "landmark",
+  },
+  {
+    id: "landmark-yangmingshan",
+    name: "陽明山",
+    address: "北投區竹子湖路",
+    info: "⭐ 4.7 · 自然健行 · 山景",
+    emoji: "🌿",
+    color: "#4db266",
+    position: { lat: 25.1559, lng: 121.5467 },
+    source: "landmark",
+  },
+  {
+    id: "landmark-xinyi",
+    name: "台北 101",
+    address: "信義區信義路五段 7 號",
+    info: "⭐ 4.7 · 城市地標 · 觀景",
+    emoji: "🏙️",
+    color: "#ef4444",
+    position: { lat: 25.0339, lng: 121.5645 },
+    source: "landmark",
+  },
+];
 
 export default function ExplorePage() {
-  const [activeFilter, setActiveFilter] = useState("全部");
-  const [selectedPin, setSelectedPin] = useState<string | null>("📍 大稻埕");
+  const { t } = useI18n();
+  const session = useMemo(() => getSession(), []);
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [tripPlaces, setTripPlaces] = useState<ExplorePlace[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchPredictions, setSearchPredictions] = useState<PlacePrediction[]>([]);
+  const [searchPlaces, setSearchPlaces] = useState<ExplorePlace[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [selectedPinId, setSelectedPinId] = useState<string>(LANDMARK_PLACES[0].id);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mapsRef = useRef<any>(null);
+  const autoCompleteServiceRef = useRef<any>(null);
+  const placesServiceRef = useRef<any>(null);
+  const sessionTokenRef = useRef<any>(null);
+  const predictionsCacheRef = useRef<Map<string, PlacePrediction[]>>(new Map());
+  const hasActiveSearchResult = searchPlaces.length > 0;
+  const [tripRoutePath, setTripRoutePath] = useState<MapPath | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCurrentTripStops() {
+      if (!session?.userId) {
+        if (!cancelled) {
+          setTripPlaces([]);
+        }
+        return;
+      }
+
+      const currentTripId = getCurrentTripId(session.userId);
+      if (!currentTripId) {
+        if (!cancelled) {
+          setTripPlaces([]);
+        }
+        return;
+      }
+
+      try {
+        const trip = currentTripId.startsWith("demo-")
+          ? DEMO_ITINERARIES[currentTripId]
+          : await tripsService.getTrip(currentTripId);
+
+        if (!trip) {
+          if (!cancelled) {
+            setTripPlaces([]);
+          }
+          return;
+        }
+
+        const sortedStops = [...trip.stops].sort((a, b) => a.step_order - b.step_order);
+
+        const unresolvedNames = sortedStops
+          .filter((stop) => !Number.isFinite(stop.location.lat) || !Number.isFinite(stop.location.lng))
+          .map((stop) => stop.name);
+
+        const geocodeMap = new Map<string, { lat: number; lng: number }>();
+        if (unresolvedNames.length > 0) {
+          const geocoded = await agentService.geocode(unresolvedNames);
+          for (const place of geocoded) {
+            if (!place.found) {
+              continue;
+            }
+            geocodeMap.set(place.name, { lat: place.lat, lng: place.lng });
+          }
+        }
+
+        const mapped: ExplorePlace[] = sortedStops.slice(0, 6).map((stop) => {
+          const fallback = geocodeMap.get(stop.name);
+          const lat = Number.isFinite(stop.location.lat) ? stop.location.lat : (fallback?.lat ?? TAIPEI_CENTER.lat);
+          const lng = Number.isFinite(stop.location.lng) ? stop.location.lng : (fallback?.lng ?? TAIPEI_CENTER.lng);
+          return {
+            id: `trip-${stop.stop_id}`,
+            name: stop.name,
+            address: t("explore.tripStopAddress"),
+            info: `${stop.suggested_time || t("explore.timeTBD")} · ${t("explore.tripStopInfo", { step: stop.step_order })}`,
+            emoji: "🧭",
+            color: "#6366f1",
+            position: { lat, lng },
+            source: "trip",
+          };
+        });
+
+        if (!cancelled) {
+          setTripPlaces(mapped);
+        }
+      } catch {
+        if (!cancelled) {
+          setTripPlaces([]);
+        }
+      }
+    }
+
+    void loadCurrentTripStops();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.userId, t]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function initPlacesApi() {
+      try {
+        const maps = await ensureGoogleMapsApi();
+        if (cancelled) {
+          return;
+        }
+        mapsRef.current = maps;
+        autoCompleteServiceRef.current = new maps.places.AutocompleteService();
+        placesServiceRef.current = new maps.places.PlacesService(document.createElement("div"));
+        sessionTokenRef.current = new maps.places.AutocompleteSessionToken();
+      } catch {
+        if (!cancelled) {
+          setSearchError(t("explore.searchUnavailable"));
+        }
+      }
+    }
+
+    void initPlacesApi();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = null;
+    }
+
+    const query = searchQuery.trim();
+    if (hasActiveSearchResult) {
+      setIsSearching(false);
+      setSearchPredictions([]);
+      return;
+    }
+    if (query.length < 2) {
+      setIsSearching(false);
+      setSearchPredictions([]);
+      setSearchError("");
+      return;
+    }
+
+    if (!autoCompleteServiceRef.current || !mapsRef.current) {
+      setSearchError(t("explore.searchLoadingService"));
+      return;
+    }
+
+    const cacheKey = query.toLowerCase();
+    const cached = predictionsCacheRef.current.get(cacheKey);
+    if (cached) {
+      setSearchPredictions(cached);
+      setSearchError("");
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError("");
+    searchDebounceRef.current = setTimeout(() => {
+      const maps = mapsRef.current;
+      autoCompleteServiceRef.current.getPlacePredictions(
+        {
+          input: query,
+          sessionToken: sessionTokenRef.current,
+          language: "zh-TW",
+          region: "tw",
+          componentRestrictions: { country: "tw" },
+          locationBias: new maps.Circle({ center: TAIPEI_CENTER, radius: 35000 }).getBounds(),
+        },
+        (predictions: any[] | null, status: string) => {
+          setIsSearching(false);
+          if (status !== maps.places.PlacesServiceStatus.OK || !predictions || predictions.length === 0) {
+            setSearchPredictions([]);
+            if (status !== maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+              setSearchError(t("explore.searchFailed"));
+            }
+            return;
+          }
+
+          const mapped = predictions.slice(0, 8).map((prediction) => ({
+            placeId: prediction.place_id,
+            mainText: prediction.structured_formatting?.main_text || prediction.description,
+            secondaryText: prediction.structured_formatting?.secondary_text || "",
+            fullText: prediction.description,
+          }));
+          predictionsCacheRef.current.set(cacheKey, mapped);
+          setSearchPredictions(mapped);
+        }
+      );
+    }, 260);
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = null;
+      }
+    };
+  }, [hasActiveSearchResult, searchQuery]);
+
+  const handleSelectPrediction = (prediction: PlacePrediction) => {
+    const maps = mapsRef.current;
+    if (!placesServiceRef.current || !maps) {
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError("");
+    placesServiceRef.current.getDetails(
+      {
+        placeId: prediction.placeId,
+        fields: ["place_id", "name", "formatted_address", "geometry"],
+        sessionToken: sessionTokenRef.current,
+      },
+      (place: any, status: string) => {
+        setIsSearching(false);
+        if (status !== maps.places.PlacesServiceStatus.OK || !place?.geometry?.location) {
+          setSearchError(t("explore.detailsFailed"));
+          return;
+        }
+
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
+        const selected: ExplorePlace = {
+          id: `search-${place.place_id}`,
+          name: place.name || prediction.mainText,
+          address: place.formatted_address || prediction.secondaryText || t("explore.searchResultAddress"),
+          info: t("explore.searchResultInfo"),
+          emoji: "📌",
+          color: "#ff6b6b",
+          position: { lat, lng },
+          source: "search",
+        };
+
+        setSearchPlaces([selected]);
+        setSelectedPinId(selected.id);
+        setSearchPredictions([]);
+        setSearchQuery(`${selected.name}${selected.address ? ` · ${selected.address}` : ""}`);
+        sessionTokenRef.current = new maps.places.AutocompleteSessionToken();
+      }
+    );
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSearchPredictions([]);
+    setSearchPlaces([]);
+    setSearchError("");
+  };
+
+  const handleSearchInputChange = (value: string) => {
+    if (searchPlaces.length > 0) {
+      setSearchPlaces([]);
+    }
+    setSearchQuery(value);
+  };
+
+  const allPlaces = useMemo(() => [...LANDMARK_PLACES, ...tripPlaces, ...searchPlaces], [tripPlaces, searchPlaces]);
+
+  const visiblePlaces = useMemo(() => {
+    if (hasActiveSearchResult) {
+      return searchPlaces;
+    }
+    if (activeFilter === "landmark") {
+      return allPlaces.filter((place) => place.source === "landmark");
+    }
+    if (activeFilter === "trip") {
+      return allPlaces.filter((place) => place.source === "trip");
+    }
+    return allPlaces;
+  }, [activeFilter, allPlaces, hasActiveSearchResult, searchPlaces]);
+
+  const selectedPlace = useMemo(
+    () => allPlaces.find((place) => place.id === selectedPinId) ?? visiblePlaces[0] ?? null,
+    [allPlaces, selectedPinId, visiblePlaces]
+  );
+
+  const markers = useMemo(
+    () =>
+      visiblePlaces.map((place) => ({
+        id: place.id,
+        title: place.name,
+        label: place.source === "trip" ? String(tripPlaces.findIndex((p) => p.id === place.id) + 1) : undefined,
+        color: place.id === selectedPlace?.id ? "#ff2d55" : place.color,
+        scale: place.source === "search" ? 12 : 8,
+        position: place.position,
+      })),
+    [selectedPlace?.id, tripPlaces, visiblePlaces]
+  );
+
+  const mapCenter = selectedPlace?.position ?? TAIPEI_CENTER;
+  const mapZoom = hasActiveSearchResult ? 16 : 12;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function computeTripRoute() {
+    if (hasActiveSearchResult || activeFilter !== "trip" || tripPlaces.length < 2) {
+        setTripRoutePath(null);
+        return;
+      }
+
+      try {
+        const result = await mapsService.computeRoute({
+          origin: tripPlaces[0].position,
+          destination: tripPlaces[tripPlaces.length - 1].position,
+          travelMode: "TRANSIT",
+          intermediates: tripPlaces.slice(1, -1).map((place) => place.position),
+        });
+        if (cancelled) {
+          return;
+        }
+        if (result.path.length >= 2) {
+          setTripRoutePath({
+            points: result.path,
+            color: "#3abdff",
+            weight: 5,
+            opacity: 0.9,
+          });
+          return;
+        }
+      } catch {
+        if (cancelled) {
+          return;
+        }
+      }
+
+      const fallbackPoints = tripPlaces.map((place) => place.position);
+      if (!cancelled) {
+        setTripRoutePath(
+          fallbackPoints.length >= 2
+            ? {
+                points: fallbackPoints,
+                color: "#3abdff",
+                weight: 4,
+                opacity: 0.75,
+              }
+            : null
+        );
+      }
+    }
+
+    void computeTripRoute();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeFilter, hasActiveSearchResult, tripPlaces]);
+
+  const tripMapsUrl = useMemo(() => {
+    if (hasActiveSearchResult || activeFilter !== "trip") {
+      return "";
+    }
+    return buildGoogleMapsDirectionsUrl(
+      tripPlaces.map((place) => ({ name: place.name, location: place.position })),
+      "TRANSIT"
+    );
+  }, [activeFilter, hasActiveSearchResult, tripPlaces]);
 
   return (
     <div className="relative w-full h-screen overflow-hidden" style={{ backgroundColor: "#dbe9d8" }}>
+      <GoogleMap
+        className="absolute inset-0"
+        center={mapCenter}
+        zoom={mapZoom}
+        markers={markers}
+        path={tripRoutePath}
+        onMarkerClick={setSelectedPinId}
+      />
 
-      {/* ── Map elements ── */}
-      {["33%", "56%", "78%", "17%", "47%", "69%", "89%"].map((top, i) => (
-        <div key={i} className="absolute left-0 right-0 bg-white" style={{ top, height: i < 3 ? 7 : 4 }} />
-      ))}
-      {["25%", "49%", "74%", "12%", "37%", "62%", "87%"].map((left, i) => (
-        <div key={i} className="absolute top-0 bottom-0 bg-white" style={{ left, width: i < 3 ? 6 : 4 }} />
-      ))}
-      <div className="absolute rounded-sm" style={{ background: "#c0dfba", left: "6%", top: "7%", width: 180, height: 140 }} />
-      <div className="absolute rounded-sm" style={{ background: "#c0dfba", left: "41%", top: "22%", width: 220, height: 160 }} />
-      <div className="absolute rounded-sm" style={{ background: "#c0dfba", left: "74%", top: "44%", width: 160, height: 200 }} />
-      <div className="absolute rounded-sm" style={{ background: "#c0dfba", left: "16%", top: "61%", width: 130, height: 110 }} />
-      <div className="absolute" style={{ background: "#add8e6", left: "57%", top: 0, width: 80, height: "39%" }} />
-      <div className="absolute" style={{ background: "#add8e6", left: "64%", top: 0, width: 40, height: "22%" }} />
-      <div className="absolute" style={{ background: "#add8e6", left: "25%", top: "78%", width: "33%", height: 60 }} />
-      {[
-        { l: "26%", t: "9%", w: 60, h: 40 }, { l: "33%", t: "11%", w: 80, h: 50 },
-        { l: "13%", t: "31%", w: 100, h: 60 }, { l: "45%", t: "44%", w: 70, h: 50 },
-        { l: "70%", t: "17%", w: 90, h: 55 }, { l: "82%", t: "28%", w: 110, h: 70 },
-        { l: "90%", t: "67%", w: 80, h: 55 }, { l: "35%", t: "61%", w: 65, h: 45 },
-      ].map((b, i) => (
-        <div key={i} className="absolute rounded-[3px]" style={{ background: "#d6d6d1", left: b.l, top: b.t, width: b.w, height: b.h }} />
-      ))}
-
-      {/* ── Map pins ── */}
-      {PINS.map((pin) => (
-        <MapPin key={pin.label} {...pin}
-          active={selectedPin === pin.label}
-          onClick={() => setSelectedPin(pin.label === selectedPin ? null : pin.label)}
-        />
-      ))}
+      {tripMapsUrl ? (
+        <a
+          href={tripMapsUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="absolute z-10 right-4 md:right-10 top-[108px] md:top-6 h-[36px] px-4 rounded-[18px] text-[12px] font-semibold text-white inline-flex items-center"
+          style={{ background: "#3abdff", boxShadow: "0px 2px 8px rgba(0,0,0,0.18)" }}
+        >
+          {t("explore.openTripInMaps")}
+        </a>
+      ) : null}
 
       {/* ── Search bar + filters ── */}
 
       {/* Desktop */}
       <div className="hidden md:flex absolute top-6 left-10 items-center gap-3">
-        <div className="bg-white h-[52px] w-[480px] rounded-[16px] flex items-center px-4 gap-2" style={{ boxShadow: "0px 4px 16px 0px rgba(0,0,0,0.12)" }}>
-          <span className="text-[16px]">🔍</span>
-          <span className="text-[15px]" style={{ color: "#999" }}>搜尋地點、景點、餐廳...</span>
+        <div className="relative">
+          <div className="bg-white h-[52px] w-[480px] rounded-[16px] flex items-center px-4 gap-2" style={{ boxShadow: "0px 4px 16px 0px rgba(0,0,0,0.12)" }}>
+            <span className="text-[16px]">🔍</span>
+            <input
+              value={searchQuery}
+              onChange={(e) => handleSearchInputChange(e.target.value)}
+              placeholder={t("explore.searchPlaceholder")}
+              className="flex-1 text-[15px] text-[#222] outline-none bg-transparent"
+            />
+            {(searchQuery || hasActiveSearchResult) ? (
+              <button
+                onClick={clearSearch}
+                className="text-[16px] leading-none"
+                style={{ color: "#999" }}
+                aria-label={t("explore.clearSearch")}
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+          {(searchPredictions.length > 0 || isSearching || searchError) ? (
+            <div
+              className="absolute top-[58px] left-0 w-[480px] bg-white rounded-[14px] py-2 overflow-hidden"
+              style={{ boxShadow: "0px 6px 18px rgba(0,0,0,0.14)" }}
+            >
+              {isSearching ? <p className="px-4 py-2 text-[13px] text-[#777]">{t("explore.searching")}</p> : null}
+              {!isSearching && searchError ? <p className="px-4 py-2 text-[13px] text-[#d9534f]">{searchError}</p> : null}
+              {!isSearching && !searchError && searchPredictions.length === 0 && searchQuery.trim().length >= 2 ? (
+                <p className="px-4 py-2 text-[13px] text-[#777]">{t("explore.noSearchResult")}</p>
+              ) : null}
+              {!isSearching && !searchError
+                ? searchPredictions.map((item) => (
+                  <button
+                    key={item.placeId}
+                    onClick={() => handleSelectPrediction(item)}
+                    className="w-full px-4 py-2 text-left hover:bg-[#f5fbff]"
+                  >
+                    <p className="text-[13px] font-semibold text-[#222]">{item.mainText}</p>
+                    <p className="text-[11px] text-[#777] mt-0.5">{item.secondaryText || item.fullText}</p>
+                  </button>
+                ))
+                : null}
+            </div>
+          ) : null}
         </div>
         {FILTERS.map((f) => (
-          <button key={f} onClick={() => setActiveFilter(f)}
+          <button key={f.key} onClick={() => setActiveFilter(f.key)}
             className="h-[36px] px-4 rounded-[20px] text-[13px] font-semibold whitespace-nowrap transition-colors"
-            style={activeFilter === f ? { background: "#3abdff", color: "white", boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.08)" } : { background: "white", color: "#222", boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.08)" }}>
-            {f}
+            style={activeFilter === f.key ? { background: "#3abdff", color: "white", boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.08)" } : { background: "white", color: "#222", boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.08)" }}>
+            {t(f.labelKey)}
           </button>
         ))}
       </div>
 
       {/* Mobile: stacked search + scrollable filter row */}
       <div className="flex flex-col md:hidden absolute top-3 left-3 right-3 gap-2 z-10">
-        <div className="bg-white h-[48px] rounded-[14px] flex items-center px-4 gap-2" style={{ boxShadow: "0px 4px 16px 0px rgba(0,0,0,0.12)" }}>
-          <span className="text-[15px]">🔍</span>
-          <span className="text-[14px]" style={{ color: "#999" }}>搜尋地點、景點、餐廳...</span>
+        <div className="relative">
+          <div className="bg-white h-[48px] rounded-[14px] flex items-center px-4 gap-2" style={{ boxShadow: "0px 4px 16px 0px rgba(0,0,0,0.12)" }}>
+            <span className="text-[15px]">🔍</span>
+            <input
+              value={searchQuery}
+              onChange={(e) => handleSearchInputChange(e.target.value)}
+              placeholder={t("explore.searchPlaceholder")}
+              className="flex-1 text-[14px] text-[#222] outline-none bg-transparent"
+            />
+            {(searchQuery || hasActiveSearchResult) ? (
+              <button
+                onClick={clearSearch}
+                className="text-[16px] leading-none"
+                style={{ color: "#999" }}
+                aria-label={t("explore.clearSearch")}
+              >
+                ×
+              </button>
+            ) : null}
+          </div>
+          {(searchPredictions.length > 0 || isSearching || searchError) ? (
+            <div
+              className="absolute top-[54px] left-0 right-0 bg-white rounded-[14px] py-2 overflow-hidden"
+              style={{ boxShadow: "0px 6px 18px rgba(0,0,0,0.14)" }}
+            >
+              {isSearching ? <p className="px-4 py-2 text-[13px] text-[#777]">{t("explore.searching")}</p> : null}
+              {!isSearching && searchError ? <p className="px-4 py-2 text-[13px] text-[#d9534f]">{searchError}</p> : null}
+              {!isSearching && !searchError && searchPredictions.length === 0 && searchQuery.trim().length >= 2 ? (
+                <p className="px-4 py-2 text-[13px] text-[#777]">{t("explore.noSearchResult")}</p>
+              ) : null}
+              {!isSearching && !searchError
+                ? searchPredictions.map((item) => (
+                  <button
+                    key={item.placeId}
+                    onClick={() => handleSelectPrediction(item)}
+                    className="w-full px-4 py-2 text-left active:bg-[#f5fbff]"
+                  >
+                    <p className="text-[13px] font-semibold text-[#222]">{item.mainText}</p>
+                    <p className="text-[11px] text-[#777] mt-0.5">{item.secondaryText || item.fullText}</p>
+                  </button>
+                ))
+                : null}
+            </div>
+          ) : null}
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
           {FILTERS.map((f) => (
-            <button key={f} onClick={() => setActiveFilter(f)}
+            <button key={f.key} onClick={() => setActiveFilter(f.key)}
               className="h-[34px] px-4 rounded-[20px] text-[12px] font-semibold whitespace-nowrap flex-shrink-0 transition-colors"
-              style={activeFilter === f ? { background: "#3abdff", color: "white" } : { background: "white", color: "#222", boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.08)" }}>
-              {f}
+              style={activeFilter === f.key ? { background: "#3abdff", color: "white" } : { background: "white", color: "#222", boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.08)" }}>
+              {t(f.labelKey)}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ── Zoom controls ── */}
-      <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-white rounded-[12px] w-[40px] overflow-hidden flex flex-col items-center" style={{ boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.1)" }}>
-        <button className="w-full h-[44px] text-[20px] font-bold text-[#222] hover:bg-gray-50 flex items-center justify-center">+</button>
-        <div className="w-[30px] h-px bg-gray-200" />
-        <button className="w-full h-[44px] text-[20px] font-bold text-[#222] hover:bg-gray-50 flex items-center justify-center">−</button>
-      </div>
-
       {/* ── Place Detail Card ── */}
-      {selectedPin && (
+      {selectedPlace && (
         <div
           className="absolute bottom-4 left-4 right-4 md:left-10 md:right-auto md:w-[320px] md:bottom-6 bg-white rounded-[20px] p-5"
           style={{ boxShadow: "0px 8px 24px 0px rgba(0,0,0,0.12)" }}
         >
           <div className="flex items-start gap-3 mb-3">
-            <span className="text-[32px] leading-none">{SELECTED_PLACE.emoji}</span>
+            <span className="text-[32px] leading-none">{selectedPlace.emoji}</span>
             <div>
-              <p className="text-[18px] font-bold text-[#222]">{SELECTED_PLACE.name}</p>
-              <p className="text-[13px] mt-0.5" style={{ color: "#999" }}>{SELECTED_PLACE.address}</p>
+              <p className="text-[18px] font-bold text-[#222]">{selectedPlace.name}</p>
+              <p className="text-[13px] mt-0.5" style={{ color: "#999" }}>{selectedPlace.address}</p>
             </div>
           </div>
-          <p className="text-[13px] text-[#222] mb-4">{SELECTED_PLACE.info}</p>
+          <p className="text-[13px] text-[#222] mb-4">{selectedPlace.info}</p>
           <button className="w-full h-[40px] rounded-[12px] text-white text-[14px] font-semibold" style={{ background: "linear-gradient(to right, #3abdff, #9cd8ed, #fef3da)" }}>
-            加入行程 →
+            {t("explore.addToTrip")}
           </button>
         </div>
       )}
 
-      {/* ── OSM attribution ── */}
+      {/* ── Map attribution ── */}
       <div className="absolute bottom-3 right-3 bg-white/80 rounded px-2 py-1">
-        <p className="text-[10px]" style={{ color: "#999" }}>© OpenStreetMap contributors</p>
+        <p className="text-[10px]" style={{ color: "#999" }}>© Google Maps data</p>
       </div>
     </div>
   );

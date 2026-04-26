@@ -7,7 +7,7 @@ type RouteContext = {
 };
 
 const AGENT_BASE_URL = process.env.BACKEND_AGENT_URL ?? "http://localhost:8001";
-const API_KEY_REQUIRED_PATHS = new Set(["search", "plan", "enrich", "hidden-spots"]);
+const API_KEY_REQUIRED_PATHS = new Set(["search", "plan", "geocode", "enrich", "hidden-spots", "enrich-assets"]);
 
 async function getPath(context: RouteContext): Promise<string[]> {
   const params = await Promise.resolve(context.params);

@@ -1,4 +1,4 @@
-# 🐻 Taibear — 帶你玩透 Taipei 新感旅
+# 🐻 Taibear — 帶你玩出 Taipei 新旅行
 
 > 從「安心訂房」到「在地探索」的完整 AI 旅伴
 >

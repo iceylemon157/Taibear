@@ -3,9 +3,12 @@ import type {
   AuthPayload,
   AuthTokens,
   CheckHotelResponse,
+  ComputeRoutePayload,
+  ComputeRouteResponse,
   CreateUserPayload,
   EnrichResponse,
   HotelSearchResponse,
+  GeocodeItem,
   ListSavedHotelsResponse,
   LoginPayload,
   PlanResponse,
@@ -118,10 +121,20 @@ export const agentService = {
     });
   },
 
-  enrich(recommendedRoutes: PlannedRoute[]) {
+  geocode(placeNames: string[]) {
+    return apiRequest<GeocodeItem[]>("/api/bff/agent/geocode", {
+      method: "POST",
+      body: { place_names: placeNames },
+    });
+  },
+
+  enrich(recommendedRoutes: PlannedRoute[], maxPlacesPerRoute = 5) {
     return apiRequest<EnrichResponse>("/api/bff/agent/enrich", {
       method: "POST",
-      body: { recommended_routes: recommendedRoutes },
+      body: {
+        recommended_routes: recommendedRoutes,
+        max_places_per_route: maxPlacesPerRoute,
+      },
     });
   },
 
@@ -199,6 +212,15 @@ export const realtimeService = {
   getUbike(lat: number, lng: number) {
     return apiRequest<{ stations: unknown[]; count: number; cached: boolean }>("/api/bff/realtime/ubike", {
       query: { lat, lng },
+    });
+  },
+};
+
+export const mapsService = {
+  computeRoute(payload: ComputeRoutePayload) {
+    return apiRequest<ComputeRouteResponse>("/api/bff/maps/routes", {
+      method: "POST",
+      body: payload,
     });
   },
 };

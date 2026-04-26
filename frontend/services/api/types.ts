@@ -94,6 +94,15 @@ export interface PlanResponse {
   recommended_routes: PlannedRoute[];
 }
 
+export interface GeocodeItem {
+  name: string;
+  place_id: string;
+  lat: number;
+  lng: number;
+  opening_hours: string[];
+  found: boolean;
+}
+
 export interface TripStop {
   stop_id: string;
   step_order: number;
@@ -132,6 +141,7 @@ export interface EnrichedPlace {
   place_name: string;
   place_id: string;
   folder: string;
+  photo_urls?: string[];
   reviews: {
     newest: EnrichReview[];
     most_relevant: EnrichReview[];
@@ -228,5 +238,24 @@ export interface RealtimeWeatherResponse {
 
 export interface RealtimeListResponse<T> {
   count: number;
+  cached: boolean;
+}
+
+export interface RoutePoint {
+  lat: number;
+  lng: number;
+}
+
+export interface ComputeRoutePayload {
+  origin: RoutePoint;
+  destination: RoutePoint;
+  travelMode: "TRANSIT" | "WALKING" | "DRIVING";
+  intermediates?: RoutePoint[];
+}
+
+export interface ComputeRouteResponse {
+  path: RoutePoint[];
+  distanceMeters: number;
+  durationSeconds: number;
   cached: boolean;
 }

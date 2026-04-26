@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useI18n } from "@/lib/i18n/useI18n";
 
 const CONIC_BG =
   "conic-gradient(from 90deg at 50% 50%, rgb(254,243,218) -26%, rgb(208,239,255) 13%, rgb(231,241,237) 33%, rgb(251,243,221) 52%, rgb(253,243,219) 67%, rgb(254,243,218) 74%, rgb(208,239,255) 113%)";
@@ -121,6 +122,8 @@ export default function LandingPage() {
 }
 
 function AuthButtons() {
+  const { t } = useI18n();
+
   return (
     <>
       <Link
@@ -128,14 +131,14 @@ function AuthButtons() {
         className="h-[36px] px-6 rounded-[20px] flex items-center text-[15px] font-semibold text-white whitespace-nowrap"
         style={{ background: "rgba(255,210,106,0.82)", boxShadow: "inset 0px 4px 4px rgba(0,0,0,0.12)" }}
       >
-        Log in
+        {t("landing.login")}
       </Link>
       <Link
         href="/signup"
         className="h-[36px] px-6 rounded-[20px] flex items-center text-[15px] font-semibold whitespace-nowrap"
         style={{ background: "white", color: "#ffd26a", boxShadow: "inset 0px 0px 4px rgba(0,0,0,0.15)" }}
       >
-        Sign up
+        {t("landing.signup")}
       </Link>
     </>
   );

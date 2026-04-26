@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useI18n } from "@/lib/i18n/useI18n";
 
 import { ApiError } from "@/services/api/client";
 import { agentService, tripsService, usersService } from "@/services/api/services";
@@ -13,7 +14,7 @@ import type {
   UserProfile,
 } from "@/services/api/types";
 import { getSession } from "@/services/auth/session";
-import { getCurrentTripId, setCurrentTripId } from "@/services/trips/currentTrip";
+import { getCurrentTripId, getHiddenSpot, setCurrentTripId } from "@/services/trips/currentTrip";
 
 const STYLE_TAGS = [
   { label: "🍜 美食探索", active: true },
@@ -31,6 +32,7 @@ type RecCardItem = {
   desc: string;
   duration: string;
   tags: string[];
+  hiddenSpotName?: string;
   tripId?: string;
 };
 
@@ -42,10 +44,10 @@ type PlanningSnapshot = {
 };
 
 const FALLBACK_REC_CARDS: RecCardItem[] = [
-  { emoji: "🏮", title: "大稻埕文化之旅", desc: "迪化街 · 霞海城隍廟 · 永樂市場", duration: "半天", tags: ["文化", "美食"] },
-  { emoji: "🌿", title: "陽明山一日遊", desc: "冷水坑 · 擎天崗 · 花鐘", duration: "一天", tags: ["自然", "健行"] },
-  { emoji: "🌃", title: "信義區夜生活", desc: "101 · 微風廣場 · 象山", duration: "傍晚", tags: ["打卡", "夜景"] },
-  { emoji: "🍵", title: "貓空茶山漫步", desc: "貓空纜車 · 老茶館 · 山景", duration: "半天", tags: ["自然", "放鬆"] },
+  { emoji: "🏮", title: "大稻埕文化之旅", desc: "迪化街 · 霞海城隍廟 · 永樂市場", duration: "半天", tags: ["文化", "美食"], tripId: "demo-datong" },
+  { emoji: "🌿", title: "陽明山一日遊", desc: "冷水坑 · 擎天崗 · 花鐘", duration: "一天", tags: ["自然", "健行"], tripId: "demo-yangming" },
+  { emoji: "🌃", title: "信義區夜生活", desc: "101 · 微風廣場 · 象山", duration: "傍晚", tags: ["打卡", "夜景"], tripId: "demo-xinyi" },
+  { emoji: "🍵", title: "貓空茶山漫步", desc: "貓空纜車 · 老茶館 · 山景", duration: "半天", tags: ["自然", "放鬆"], tripId: "demo-maokong" },
 ];
 
 const CONIC_BG = "conic-gradient(from 90deg at 50% 50%, rgb(254,243,218) -26%, rgb(208,239,255) 13%, rgb(231,241,237) 33%, rgb(251,243,221) 52%, rgb(253,243,219) 67%, rgb(254,243,218) 74%, rgb(208,239,255) 113%)";
@@ -209,12 +211,15 @@ function countEnrichedPlaces(enrich: EnrichResponse): number {
 }
 
 function tripToRecCard(trip: Trip): RecCardItem {
+  const hiddenSpot = getHiddenSpot(trip);
+
   return {
     emoji: "🧭",
     title: trip.route_name || `行程 ${trip.trip_id}`,
     desc: `${trip.theme || "城市探索"} · ${trip.stops.length} 個景點`,
     duration: toDurationLabel(trip.stops.length),
-    tags: [trip.theme || "旅遊", trip.status],
+    tags: [trip.theme || "旅遊", "隱藏景點", trip.status],
+    hiddenSpotName: hiddenSpot?.name,
     tripId: trip.trip_id,
   };
 }
@@ -242,9 +247,10 @@ function tripToPlannedRoute(trip: Trip): PlannedRoute {
   };
 }
 
-const STATUS_MESSAGES = ["搜尋最佳景點...", "規劃路線中...", "整理行程資訊...", "即將完成..."];
+const STATUS_MESSAGE_KEYS = ["trips.status.search", "trips.status.plan", "trips.status.organize", "trips.status.done"];
 
 export default function TripsPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [prompt, setPrompt] = useState("");
@@ -348,7 +354,7 @@ export default function TripsPage() {
       if (error instanceof ApiError) {
         setErrorMessage(error.message);
       } else {
-        setErrorMessage("讀取行程失敗，請稍後再試。");
+        setErrorMessage(t("trips.error.loadTrips"));
       }
     } finally {
       setLoadingTrips(false);
@@ -374,7 +380,7 @@ export default function TripsPage() {
       if (error instanceof ApiError) {
         setEnrichErrorMessage(error.message);
       } else {
-        setEnrichErrorMessage("補充景點資訊失敗，請稍後再試。");
+        setEnrichErrorMessage(t("trips.error.enrich"));
       }
       return null;
     } finally {
@@ -384,13 +390,13 @@ export default function TripsPage() {
 
   async function handleCreateTrip() {
     if (!session?.userId) {
-      setErrorMessage("請先登入再建立行程。");
+      setErrorMessage(t("trips.error.loginFirst"));
       return;
     }
 
     const query = prompt.trim();
     if (!query) {
-      setErrorMessage("請先輸入旅程想法。");
+      setErrorMessage(t("trips.error.enterPrompt"));
       return;
     }
 
@@ -419,7 +425,7 @@ export default function TripsPage() {
       const chosenRoute = plan.recommended_routes?.[0];
 
       if (!chosenRoute) {
-        throw new Error("AI 尚未產生可建立的行程。");
+        throw new Error(t("trips.error.noRoute"));
       }
 
       const tripDate = new Date().toISOString().slice(0, 10);
@@ -437,7 +443,7 @@ export default function TripsPage() {
       } else if (error instanceof Error) {
         setErrorMessage(error.message);
       } else {
-        setErrorMessage("建立行程失敗，請稍後再試。");
+        setErrorMessage(t("trips.error.createFailed"));
       }
     } finally {
       setPlanning(false);
@@ -458,7 +464,7 @@ export default function TripsPage() {
 
   useEffect(() => {
     if (!planning) { setStatusIdx(0); return; }
-    const id = setInterval(() => setStatusIdx(i => (i + 1) % STATUS_MESSAGES.length), 1800);
+    const id = setInterval(() => setStatusIdx(i => (i + 1) % STATUS_MESSAGE_KEYS.length), 1800);
     return () => clearInterval(id);
   }, [planning]);
 
@@ -534,14 +540,14 @@ export default function TripsPage() {
         {/* Left column */}
         <div className="flex-1 px-12 py-12 flex flex-col gap-6 min-w-0">
           <div>
-            <p className="text-[36px] font-bold leading-tight" style={{ color: "rgba(26,26,26,0.2)" }}>Taibear 帶你玩出</p>
-            <p className="text-[36px] font-bold leading-tight" style={{ color: "#ffd26a" }}>Taipei 新旅行 ✦</p>
+            <p className="text-[36px] font-bold leading-tight" style={{ color: "rgba(26,26,26,0.2)" }}>{t("trips.heroLine1")}</p>
+            <p className="text-[36px] font-bold leading-tight" style={{ color: "#ffd26a" }}>{t("trips.heroLine2")}</p>
           </div>
 
           <DatePicker />
 
           <div>
-            <p className="text-[14px] font-semibold mb-3" style={{ color: "#999" }}>✦ 你的旅遊風格</p>
+            <p className="text-[14px] font-semibold mb-3" style={{ color: "#999" }}>{t("trips.styleLabel")}</p>
             <TagRow tags={tags} onToggle={toggleTag} />
           </div>
 
@@ -551,7 +557,7 @@ export default function TripsPage() {
 
           {planning ? (
             <PlanningStatusCard
-              statusMessage={STATUS_MESSAGES[statusIdx]}
+               statusMessage={t(STATUS_MESSAGE_KEYS[statusIdx] ?? STATUS_MESSAGE_KEYS[0])}
               planningSnapshot={planningSnapshot}
             />
           ) : errorMessage ? (
@@ -575,7 +581,7 @@ export default function TripsPage() {
             onOpen={ongoingTrip ? () => openTripDetail(ongoingTrip.trip_id) : undefined}
             selected={Boolean(ongoingTrip && selectedTripId === ongoingTrip.trip_id)}
           />
-          <p className="text-[16px] font-semibold text-black">✦ 精選推薦行程</p>
+          <p className="text-[16px] font-semibold text-black">{t("trips.recHeading")}</p>
           <div className="grid grid-cols-2 gap-4">
             {recCards.map((card) => (
               <RecCard
@@ -601,14 +607,14 @@ export default function TripsPage() {
       <div className="flex flex-col md:hidden px-4 py-6 gap-5">
         {/* Hero text */}
         <div>
-          <p className="text-[36px] font-bold leading-tight" style={{ color: "rgba(26,26,26,0.2)" }}>Taibear 帶你玩出</p>
-          <p className="text-[36px] font-bold leading-tight" style={{ color: "#ffd26a" }}>Taipei 新旅行 ✦</p>
+          <p className="text-[36px] font-bold leading-tight" style={{ color: "rgba(26,26,26,0.2)" }}>{t("trips.heroLine1")}</p>
+          <p className="text-[36px] font-bold leading-tight" style={{ color: "#ffd26a" }}>{t("trips.heroLine2")}</p>
         </div>
 
         <DatePicker />
 
         <div>
-          <p className="text-[14px] font-semibold mb-3" style={{ color: "#999" }}>✦ 你的旅遊風格</p>
+          <p className="text-[14px] font-semibold mb-3" style={{ color: "#999" }}>{t("trips.styleLabel")}</p>
           <TagRow tags={tags} onToggle={toggleTag} mobile />
         </div>
 
@@ -618,7 +624,7 @@ export default function TripsPage() {
 
         {planning ? (
           <PlanningStatusCard
-            statusMessage={STATUS_MESSAGES[statusIdx]}
+            statusMessage={t(STATUS_MESSAGE_KEYS[statusIdx] ?? STATUS_MESSAGE_KEYS[0])}
             planningSnapshot={planningSnapshot}
           />
         ) : errorMessage ? (
@@ -635,7 +641,7 @@ export default function TripsPage() {
           selected={Boolean(ongoingTrip && selectedTripId === ongoingTrip.trip_id)}
         />
 
-        <p className="text-[16px] font-semibold text-black">✦ 精選推薦行程</p>
+        <p className="text-[16px] font-semibold text-black">{t("trips.recHeading")}</p>
         <div className="flex flex-col gap-4">
           {recCards.map((card) => (
             <RecCard
@@ -664,6 +670,8 @@ export default function TripsPage() {
 // ── Sub-components ───────────────────────────────────────────────────────────
 
 function DatePicker() {
+  const { t } = useI18n();
+
   return (
     <div
       className="flex items-center h-[64px] rounded-[16px] border-[1.5px] bg-white px-4 gap-3"
@@ -671,18 +679,18 @@ function DatePicker() {
     >
       <span className="text-[18px]">📅</span>
       <div className="flex flex-col">
-        <span className="text-[11px]" style={{ color: "#999" }}>出發日期</span>
+        <span className="text-[11px]" style={{ color: "#999" }}>{t("trips.date.start")}</span>
         <span className="text-[15px] font-semibold text-black">2025/05/01</span>
       </div>
       <span className="text-[20px] font-semibold text-black">⭢</span>
       <div className="flex flex-col">
-        <span className="text-[11px]" style={{ color: "#999" }}>結束日期</span>
+        <span className="text-[11px]" style={{ color: "#999" }}>{t("trips.date.end")}</span>
         <span className="text-[15px] font-semibold text-black">2025/05/01</span>
       </div>
       <div className="hidden sm:block w-px h-[40px] mx-1" style={{ background: "#e0e0e0" }} />
       <div className="hidden sm:flex flex-col">
-        <span className="text-[11px]" style={{ color: "#999" }}>行程天數</span>
-        <span className="text-[15px] font-semibold" style={{ color: "#3abdff" }}>3 天 2 夜</span>
+        <span className="text-[11px]" style={{ color: "#999" }}>{t("trips.date.duration")}</span>
+        <span className="text-[15px] font-semibold" style={{ color: "#3abdff" }}>{t("trips.date.durationValue")}</span>
       </div>
     </div>
   );
@@ -720,12 +728,14 @@ function PromptBox({
   onSubmit: () => void;
   disabled: boolean;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="relative rounded-[20px] border-2 bg-white" style={{ borderColor: "#3abdff", minHeight: 140 }}>
       <textarea
         className="w-full h-[100px] pt-[18px] px-[18px] text-[15px] resize-none outline-none bg-transparent"
         style={{ color: "#1a1a1a" }}
-        placeholder={"告訴 Taibear 這次旅程的任何想法...\n\n例如：想去大稻埕吃小吃、拍照，傍晚想看夕陽，不想走太多路 🐾"}
+        placeholder={t("trips.promptPlaceholder")}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -742,6 +752,8 @@ function PromptBox({
 }
 
 function AIPlanButton({ onClick, loading, disabled }: { onClick: () => void; loading: boolean; disabled: boolean }) {
+  const { t } = useI18n();
+
   return (
     <button
       onClick={onClick}
@@ -749,7 +761,7 @@ function AIPlanButton({ onClick, loading, disabled }: { onClick: () => void; loa
       className="w-full h-[56px] rounded-[16px] text-white text-[17px] font-semibold disabled:opacity-70"
       style={{ background: "linear-gradient(to right, #3abdff, #9cd8ed, #fef3da)" }}
     >
-      {loading ? "正在規劃行程..." : "✦ AI 個人化規劃行程 →"}
+      {loading ? t("trips.aiPlan.loading") : t("trips.aiPlan.submit")}
     </button>
   );
 }
@@ -761,13 +773,14 @@ function PlanningStatusCard({
   statusMessage: string;
   planningSnapshot: PlanningSnapshot | null;
 }) {
-  const promptText = planningSnapshot?.prompt || "未提供";
+  const { t } = useI18n();
+  const promptText = planningSnapshot?.prompt || t("common.notSpecified");
   const selectedTagsText = planningSnapshot && planningSnapshot.selectedTags.length > 0
     ? planningSnapshot.selectedTags.join("、")
-    : "未額外選擇前端標籤";
+    : t("common.notSpecified");
   const relatedPreferenceTagsText = planningSnapshot && planningSnapshot.relatedPreferenceTags.length > 0
     ? planningSnapshot.relatedPreferenceTags.join("、")
-    : "我們會參考你在問卷中留下的個人偏好標籤";
+    : t("common.notSpecified");
   const preferenceSignalsText = planningSnapshot && planningSnapshot.preferenceSignals.length > 0
     ? planningSnapshot.preferenceSignals.join(" ｜ ")
     : "";
@@ -784,20 +797,20 @@ function PlanningStatusCard({
       <span style={{ fontSize: 26, animation: "bearBounce 0.9s ease infinite", display: "inline-block" }}>🐻</span>
       <div className="flex-1 min-w-0">
         <p className="text-[14px] font-semibold text-[#141414]">{statusMessage}</p>
-        <p className="text-[12px]" style={{ color: "#999" }}>Taibear 正在規劃中，已參考以下資料：</p>
+        <p className="text-[12px]" style={{ color: "#999" }}>{t("trips.planCard.title")}</p>
         <div className="mt-1.5">
           <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
-            提示詞：{promptText}
+            {t("trips.planCard.prompt", { value: promptText })}
           </p>
           <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
-            已選標籤：{selectedTagsText}
+            {t("trips.planCard.tags", { value: selectedTagsText })}
           </p>
           <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
-            根據我們對你的了解，這次會優先考慮你的偏好標籤：{relatedPreferenceTagsText}
+            {t("trips.planCard.pref", { value: relatedPreferenceTagsText })}
           </p>
           {preferenceSignalsText ? (
             <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
-              另外也會參考：{preferenceSignalsText}
+              {t("trips.planCard.signals", { value: preferenceSignalsText })}
             </p>
           ) : null}
         </div>
@@ -833,13 +846,15 @@ function OngoingTripCard({
   onOpen?: () => void;
   selected?: boolean;
 }) {
+  const { t } = useI18n();
+
   if (loading) {
     return (
       <div
         className="rounded-[20px] border-2 p-4"
         style={{ background: "#fef3da", borderColor: "#f7d989", minHeight: 130 }}
       >
-        <p className="text-[13px]" style={{ color: "#999" }}>讀取行程中...</p>
+        <p className="text-[13px]" style={{ color: "#999" }}>{t("trips.ongoing.loading")}</p>
       </div>
     );
   }
@@ -854,17 +869,18 @@ function OngoingTripCard({
           className="inline-block px-4 h-[26px] rounded-[20px] text-[11px] font-semibold text-white leading-[26px]"
           style={{ background: "#ffd26a" }}
         >
-          尚無行程
+          {t("trips.ongoing.none")}
         </span>
-        <p className="mt-2 text-[18px] font-bold text-black">建立你的第一條 AI 行程</p>
+        <p className="mt-2 text-[18px] font-bold text-black">{t("trips.ongoing.createFirst")}</p>
         <p className="text-[13px] mt-1" style={{ color: "#999" }}>
-          輸入需求後，Taibear 會自動搜尋並建立可用路線。
+          {t("trips.ongoing.createHint")}
         </p>
       </div>
     );
   }
 
   const stopCount = trip.stops?.length ?? 0;
+  const hiddenSpot = getHiddenSpot(trip);
 
   return (
     <div
@@ -879,12 +895,17 @@ function OngoingTripCard({
         className="inline-block px-4 h-[26px] rounded-[20px] text-[11px] font-semibold text-white leading-[26px]"
         style={{ background: "#ffd26a" }}
       >
-        {trip.status === "active" ? "進行中 🔥" : "已建立 ✨"}
+        {trip.status === "active" ? t("trips.ongoing.active") : t("trips.ongoing.created")}
       </span>
       <p className="mt-2 text-[18px] font-bold text-black">{trip.route_name || `行程 ${trip.trip_id}`}</p>
       <p className="text-[13px] mt-1" style={{ color: "#999" }}>
         📅 {formatDateLabel(trip.trip_date)} · 📍 {stopCount} 個景點 · 🧭 {trip.theme || "城市探索"}
       </p>
+      {hiddenSpot ? (
+        <p className="text-[12px] mt-1 font-semibold" style={{ color: "#e6a500" }}>
+          {t("trips.ongoing.hiddenSpot", { name: hiddenSpot.name })}
+        </p>
+      ) : null}
 
       <div className="absolute bottom-4 right-4 flex gap-2">
         {onOpen ? (
@@ -893,7 +914,7 @@ function OngoingTripCard({
             className="px-4 h-[32px] rounded-[10px] text-white text-[12px] font-semibold"
             style={{ background: "#3abdff" }}
           >
-            查看行程
+            {t("trips.ongoing.open")}
           </button>
         ) : null}
         <button
@@ -901,7 +922,7 @@ function OngoingTripCard({
           className="px-4 h-[32px] rounded-[10px] text-white text-[12px] font-semibold"
           style={{ background: "#ffd26a" }}
         >
-          更新資料 ↻
+          {t("trips.ongoing.refresh")}
         </button>
       </div>
     </div>
@@ -914,6 +935,7 @@ function RecCard({
   desc,
   duration,
   tags,
+  hiddenSpotName,
   onClick,
   selected,
 }: {
@@ -922,6 +944,7 @@ function RecCard({
   desc: string;
   duration: string;
   tags: string[];
+  hiddenSpotName?: string;
   onClick?: () => void;
   selected?: boolean;
 }) {
@@ -949,6 +972,11 @@ function RecCard({
       </div>
       <p className="mt-3 text-[14px] font-semibold text-black">{title}</p>
       <p className="text-[11px] mt-1 leading-[16px]" style={{ color: "#999" }}>{desc}</p>
+      {hiddenSpotName ? (
+        <p className="text-[11px] mt-1 font-semibold" style={{ color: "#e6a500" }}>
+          隱藏景點：{hiddenSpotName}
+        </p>
+      ) : null}
       <div className="flex gap-2 mt-3 flex-wrap">
         {tags.map((tag) => (
           <span key={tag} className="h-[20px] px-3 rounded-[20px] text-[10px] leading-[20px]"
@@ -974,19 +1002,23 @@ function TripDetailPanel({
   enrichErrorMessage: string;
   onRequestEnrich?: () => void;
 }) {
+  const { t } = useI18n();
+
   if (!trip) {
     return (
       <div
         className="bg-white rounded-[16px] p-4"
         style={{ boxShadow: "0px 4px 12px 0px rgba(0,0,0,0.06)" }}
       >
-        <p className="text-[14px] font-semibold text-black">行程詳情</p>
-        <p className="text-[12px] mt-2" style={{ color: "#999" }}>尚未建立可查看的行程。</p>
+        <p className="text-[14px] font-semibold text-black">{t("trips.detail.title")}</p>
+        <p className="text-[12px] mt-2" style={{ color: "#999" }}>{t("trips.detail.empty")}</p>
       </div>
     );
   }
 
   const orderedStops = [...(trip.stops || [])].sort((a, b) => a.step_order - b.step_order);
+  const hiddenSpot = getHiddenSpot(trip);
+  const hiddenStopId = hiddenSpot?.stop_id;
   const hasEnriched = Boolean(enrichedRoute && enrichedRoute.places.length > 0);
 
   return (
@@ -995,14 +1027,14 @@ function TripDetailPanel({
       style={{ boxShadow: "0px 4px 12px 0px rgba(0,0,0,0.06)" }}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[15px] font-semibold text-black">行程詳情</p>
+        <p className="text-[15px] font-semibold text-black">{t("trips.detail.title")}</p>
         <button
           onClick={onRequestEnrich}
           disabled={!onRequestEnrich || loadingEnrich}
           className="h-[30px] px-3 rounded-[10px] text-[11px] text-white disabled:opacity-70"
           style={{ background: "#3abdff" }}
         >
-          {loadingEnrich ? "補充中..." : hasEnriched ? "更新 AI 補充" : "載入 AI 補充"}
+          {loadingEnrich ? t("trips.detail.enrichLoading") : hasEnriched ? t("trips.detail.enrichUpdate") : t("trips.detail.enrichLoad")}
         </button>
       </div>
 
@@ -1010,6 +1042,14 @@ function TripDetailPanel({
       <p className="text-[12px] mt-1" style={{ color: "#777" }}>
         📅 {formatDateLabel(trip.trip_date)} · 🧭 {trip.theme || "城市探索"} · 📍 {orderedStops.length} 個景點
       </p>
+      {hiddenSpot ? (
+        <div
+          className="inline-flex items-center mt-2 px-3 h-[24px] rounded-[12px] text-[11px] font-semibold"
+          style={{ background: "#fff5dc", color: "#e6a500" }}
+        >
+          {t("trips.ongoing.hiddenSpot", { name: hiddenSpot.name })}
+        </div>
+      ) : null}
 
       {trip.google_maps_url ? (
         <a
@@ -1019,27 +1059,41 @@ function TripDetailPanel({
           className="inline-block mt-2 text-[12px] font-medium"
           style={{ color: "#3abdff" }}
         >
-          在 Google Maps 開啟整段路線 ↗
+          {t("trips.detail.openFullMap")}
         </a>
       ) : null}
 
       <div className="mt-3">
-        <p className="text-[12px] font-semibold" style={{ color: "#555" }}>路線停靠點</p>
+        <p className="text-[12px] font-semibold" style={{ color: "#555" }}>{t("trips.detail.stops")}</p>
         <div className="mt-2 flex flex-col gap-2">
-          {orderedStops.map((stop) => (
-            <div
-              key={stop.stop_id}
-              className="rounded-[10px] border px-3 py-2"
-              style={{ borderColor: "#eee" }}
-            >
-              <p className="text-[12px] font-semibold text-[#222]">
-                {stop.step_order}. {stop.name}
-              </p>
-              <p className="text-[11px] mt-1" style={{ color: "#777" }}>
-                {stop.suggested_time || "時間未指定"} · {stop.reasoning || "無補充說明"}
-              </p>
-            </div>
-          ))}
+          {orderedStops.map((stop) => {
+            const hidden = hiddenStopId === stop.stop_id;
+
+            return (
+              <div
+                key={stop.stop_id}
+                className="rounded-[10px] border px-3 py-2"
+                style={{ borderColor: "#eee" }}
+              >
+                <p className="text-[12px] font-semibold text-[#222]">
+                  {stop.step_order}. {stop.name}
+                </p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <p className="text-[11px]" style={{ color: "#777" }}>
+                    {stop.suggested_time || t("trips.detail.timeUnset")} · {stop.reasoning || t("trips.detail.noteMissing")}
+                  </p>
+                  {hidden ? (
+                    <span
+                      className="h-[20px] px-2.5 rounded-[10px] text-[10px] leading-[20px] font-semibold"
+                      style={{ background: "#fff5dc", color: "#e6a500" }}
+                    >
+                      {t("trips.detail.hiddenSpotTag")}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -1050,10 +1104,10 @@ function TripDetailPanel({
       ) : null}
 
       <div className="mt-4 border-t pt-3" style={{ borderColor: "#efefef" }}>
-        <p className="text-[12px] font-semibold" style={{ color: "#555" }}>AI 補充資訊（/enrich）</p>
+        <p className="text-[12px] font-semibold" style={{ color: "#555" }}>{t("trips.detail.enrichTitle")}</p>
 
         {loadingEnrich ? (
-          <p className="text-[12px] mt-2" style={{ color: "#999" }}>補充內容生成中...</p>
+          <p className="text-[12px] mt-2" style={{ color: "#999" }}>{t("trips.detail.enrichGenerating")}</p>
         ) : hasEnriched && enrichedRoute ? (
           <div className="mt-2 flex flex-col gap-2 max-h-[220px] overflow-auto pr-1">
             {enrichedRoute.places.map((place) => {
@@ -1071,7 +1125,7 @@ function TripDetailPanel({
                     </p>
                   ) : null}
                   <p className="text-[11px] mt-1" style={{ color: "#777" }}>
-                    🖼 {place.photos.length} 張照片 · 🗣 最新 {place.reviews.newest.length} 則評論
+                    {t("trips.detail.placeSummary", { photos: place.photos.length, reviews: place.reviews.newest.length })}
                   </p>
                   {topReview?.text ? (
                     <p className="text-[11px] mt-1" style={{ color: "#999" }}>
@@ -1084,7 +1138,7 @@ function TripDetailPanel({
           </div>
         ) : (
           <p className="text-[12px] mt-2" style={{ color: "#999" }}>
-            尚未載入 AI 補充資訊，可點右上按鈕取得評論摘要、照片數量與短影片字幕。
+            {t("trips.detail.enrichEmpty")}
           </p>
         )}
       </div>

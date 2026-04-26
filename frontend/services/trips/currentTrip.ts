@@ -1,3 +1,5 @@
+import type { Trip, TripStop } from "@/services/api/types";
+
 const CURRENT_TRIP_STORAGE_KEY = "taibear.current-trip-map";
 
 type CurrentTripMap = Record<string, string>;
@@ -61,4 +63,28 @@ export function clearCurrentTripId(userId: string): void {
   }
   delete map[userId];
   writeMap(map);
+}
+
+function hashSeed(input: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function getOrderedStops(stops: TripStop[]): TripStop[] {
+  return [...stops].sort((a, b) => a.step_order - b.step_order);
+}
+
+export function getHiddenSpot(trip: Pick<Trip, "trip_id" | "stops"> | null | undefined): TripStop | null {
+  if (!trip || trip.stops.length === 0) {
+    return null;
+  }
+
+  const orderedStops = getOrderedStops(trip.stops);
+  // Deterministic pseudo-random pick so every trip always has one stable hidden spot.
+  const hiddenIndex = hashSeed(`${trip.trip_id}:${orderedStops.length}`) % orderedStops.length;
+  return orderedStops[hiddenIndex] ?? null;
 }

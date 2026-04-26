@@ -8,11 +8,13 @@ import { useState } from "react";
 import { ApiError } from "@/services/api/client";
 import { authService } from "@/services/api/services";
 import { setSession } from "@/services/auth/session";
+import { useI18n } from "@/lib/i18n/useI18n";
 
 const CONIC_BG =
   "conic-gradient(from 90deg at 50% 50%, rgb(254,243,218) -26%, rgb(208,239,255) 13%, rgb(231,241,237) 33%, rgb(251,243,221) 52%, rgb(253,243,219) 67%, rgb(254,243,218) 74%, rgb(208,239,255) 113%)";
 
 export default function LoginPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
@@ -27,11 +29,11 @@ export default function LoginPage() {
     setErrorMessage("");
     const userId = email.trim().toLowerCase();
     if (!userId) {
-      setErrorMessage("請輸入 Email。");
+      setErrorMessage(t("auth.login.emailRequired"));
       return;
     }
     if (!password) {
-      setErrorMessage("請輸入密碼。");
+      setErrorMessage(t("auth.login.passwordRequired"));
       return;
     }
 
@@ -54,12 +56,12 @@ export default function LoginPage() {
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.status === 401) {
-          setErrorMessage("帳號或密碼錯誤。");
+          setErrorMessage(t("auth.login.invalid"));
         } else {
-          setErrorMessage(error.message || "登入失敗，請稍後再試。");
+          setErrorMessage(error.message || t("auth.login.failed"));
         }
       } else {
-        setErrorMessage("登入失敗，請稍後再試。");
+        setErrorMessage(t("auth.login.failed"));
       }
     } finally {
       setSubmitting(false);
@@ -87,25 +89,25 @@ export default function LoginPage() {
         </div>
 
         {/* Title */}
-        <h1 className="text-[26px] md:text-[32px] font-bold text-[#141414] mb-7">Nice to see you again</h1>
+        <h1 className="text-[26px] md:text-[32px] font-bold text-[#141414] mb-7">{t("auth.login.title")}</h1>
 
         <form onSubmit={handleSignIn} className="flex flex-col">
           {/* Email */}
-          <label className="text-[13px] font-medium mb-2" style={{ color: "#999" }}>Login</label>
+          <label className="text-[13px] font-medium mb-2" style={{ color: "#999" }}>{t("auth.login.accountLabel")}</label>
           <input
             type="text"
-            placeholder="Email or phone number"
+            placeholder={t("auth.login.accountPlaceholder")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full h-[52px] md:h-[56px] bg-white rounded-[14px] px-4 text-[15px] text-[#141414] outline-none mb-4 border-none"
           />
 
           {/* Password */}
-          <label className="text-[13px] font-medium mb-2" style={{ color: "#999" }}>Password</label>
+          <label className="text-[13px] font-medium mb-2" style={{ color: "#999" }}>{t("auth.login.passwordLabel")}</label>
           <div className="relative mb-3">
             <input
               type={showPassword ? "text" : "password"}
-              placeholder="Enter password"
+                placeholder={t("auth.login.passwordPlaceholder")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full h-[52px] md:h-[56px] bg-white rounded-[14px] px-4 pr-12 text-[15px] text-[#141414] outline-none border-none"
@@ -133,10 +135,10 @@ export default function LoginPage() {
                   style={{ left: remember ? "22px" : "2px" }}
                 />
               </button>
-              <span className="text-[13px] text-[#141414]">Remember me</span>
+              <span className="text-[13px] text-[#141414]">{t("auth.login.remember")}</span>
             </label>
             <button type="button" className="text-[13px] font-semibold" style={{ color: "#3abdff" }}>
-              Forgot password?
+              {t("auth.login.forgot")}
             </button>
           </div>
 
@@ -147,7 +149,7 @@ export default function LoginPage() {
             className="w-full h-[52px] md:h-[56px] rounded-[16px] text-white text-[16px] font-bold mb-3 transition-opacity disabled:cursor-not-allowed disabled:opacity-70 hover:opacity-90"
             style={{ background: "#3abdff" }}
           >
-            {submitting ? "Signing in..." : "Sign in"}
+            {submitting ? t("auth.login.submitting") : t("auth.login.submit")}
           </button>
 
           {errorMessage ? (
@@ -169,13 +171,13 @@ export default function LoginPage() {
             className="w-full h-[52px] md:h-[56px] rounded-[16px] bg-[#141414] text-white text-[15px] font-semibold flex items-center justify-center gap-3 mb-8 transition-opacity hover:opacity-90"
           >
             <GoogleIcon />
-            Sign in with Google
+            {t("auth.login.google")}
           </button>
 
           <p className="text-center text-[14px]" style={{ color: "#999" }}>
-            Don&apos;t have an account?{" "}
+            {t("auth.login.noAccount")}{" "}
             <Link href="/signup" className="font-semibold" style={{ color: "#3abdff" }}>
-              Sign up now
+              {t("auth.login.signupNow")}
             </Link>
           </p>
         </form>
@@ -187,6 +189,7 @@ export default function LoginPage() {
 }
 
 function AuthToggle({ active }: { active: "login" | "signup" }) {
+  const { t } = useI18n();
   const activeStyle = {
     background: "rgba(255,210,106,0.82)",
     boxShadow: "inset 0px 4px 4px rgba(0,0,0,0.12)",
@@ -199,11 +202,11 @@ function AuthToggle({ active }: { active: "login" | "signup" }) {
     >
       <Link href="/login" className="h-full px-6 rounded-[20px] flex items-center text-[15px] font-semibold"
         style={active === "login" ? activeStyle : { color: "#ffd26a" }}>
-        Log in
+        {t("landing.login")}
       </Link>
       <Link href="/signup" className="h-full px-6 rounded-[20px] flex items-center text-[15px] font-semibold"
         style={active === "signup" ? activeStyle : { color: "#ffd26a" }}>
-        Sign up
+        {t("landing.signup")}
       </Link>
     </div>
   );
