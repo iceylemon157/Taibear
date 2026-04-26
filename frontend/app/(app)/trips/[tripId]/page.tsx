@@ -3,7 +3,8 @@
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEMO_ITINERARIES } from "@/app/data/demo-itineraries";
-import { GoogleMap, type MapSegment, type MapTravelMode } from "@/components/maps/google-map";
+import { GoogleMap, type MapTravelMode } from "@/components/maps/google-map";
+import { buildGoogleMapsDirectionsUrl } from "@/lib/google-maps-url";
 import { agentService, tripsService } from "@/services/api/services";
 import type { EnrichResponse, EnrichedPlace, Trip, TripStop } from "@/services/api/types";
 import { getSession } from "@/services/auth/session";
@@ -272,48 +273,24 @@ function SpotDetailPanel({ stop, enrichedPlace }: {
 // ── TransportPanel ────────────────────────────────────────────────────────────
 
 function TransportPanel({
-  orderedStops,
-  selectedStopIdx,
   fromStop,
   toStop,
   transportMode,
   onTransportModeChange,
 }: {
-  orderedStops: TripStop[];
-  selectedStopIdx: number;
   fromStop: TripStop;
   toStop: TripStop;
   transportMode: MapTravelMode;
   onTransportModeChange: (mode: MapTravelMode) => void;
 }) {
   const heuristic = getSegmentHeuristic(fromStop, toStop);
-  const routeMarkers = orderedStops.map((stop, index) => ({
-    id: stop.stop_id,
-    title: stop.name,
-    label: String(index + 1),
-    color: index === selectedStopIdx ? "#3abdff" : index === selectedStopIdx + 1 ? "#ff7a59" : "#8fd4ff",
-    position: stop.location,
-  }));
-
-  const fullRouteSegments: MapSegment[] = orderedStops.slice(0, -1).flatMap((stop, index) => {
-    const nextStop = orderedStops[index + 1];
-    if (!nextStop) {
-      return [];
-    }
-    return [{
-      from: stop.location,
-      to: nextStop.location,
-      travelMode: transportMode,
-      color: "#7fc7ee",
-    }];
-  });
-
-  const selectedSegment: MapSegment = {
-    from: fromStop.location,
-    to: toStop.location,
-    travelMode: transportMode,
-    color: "#3abdff",
-  };
+  const mapsUrl = buildGoogleMapsDirectionsUrl(
+    [
+      { name: fromStop.name, location: fromStop.location },
+      { name: toStop.name, location: toStop.location },
+    ],
+    transportMode
+  );
 
   return (
     <div className="px-5 pt-5 pb-16">
@@ -330,8 +307,30 @@ function TransportPanel({
           lng: (fromStop.location.lng + toStop.location.lng) / 2,
         }}
         zoom={14}
-        markers={routeMarkers}
-        segments={[...fullRouteSegments, selectedSegment]}
+        markers={[
+          {
+            id: fromStop.stop_id,
+            title: fromStop.name,
+            label: "A",
+            color: "#3abdff",
+            position: fromStop.location,
+          },
+          {
+            id: toStop.stop_id,
+            title: toStop.name,
+            label: "B",
+            color: "#ff7a59",
+            position: toStop.location,
+          },
+        ]}
+        segment={{
+          from: fromStop.location,
+          to: toStop.location,
+          travelMode: transportMode,
+          color: "#3abdff",
+          weight: 6,
+          opacity: 0.95,
+        }}
       />
 
       {/* Transport options */}
@@ -375,13 +374,19 @@ function TransportPanel({
         })}
       </div>
 
-      {/* More routes button */}
-      <div className="flex justify-center">
-        <button className="h-[40px] rounded-[12px] text-white text-[13px] font-semibold"
-          style={{ width: 350, maxWidth: "100%", background: "#3abdff", boxShadow: "0px 4px 16px rgba(0,0,0,0.05)" }}>
-          更多路線
-        </button>
-      </div>
+      {mapsUrl ? (
+        <div className="flex justify-center">
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="h-[40px] rounded-[12px] text-white text-[13px] font-semibold inline-flex items-center justify-center"
+            style={{ width: 350, maxWidth: "100%", background: "#3abdff", boxShadow: "0px 4px 16px rgba(0,0,0,0.05)" }}
+          >
+            在 Google Maps 開啟這段路線 ↗
+          </a>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -659,8 +664,6 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
                 <SpotDetailPanel stop={currentStop} enrichedPlace={enrichedPlace} />
               ) : panel.type === "transport" && orderedStops[panel.stopIdx] && orderedStops[panel.stopIdx + 1] ? (
                 <TransportPanel
-                  orderedStops={orderedStops}
-                  selectedStopIdx={panel.stopIdx}
                   fromStop={orderedStops[panel.stopIdx]}
                   toStop={orderedStops[panel.stopIdx + 1]}
                   transportMode={transportMode}
@@ -766,8 +769,6 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
               <SpotDetailPanel stop={currentStop} enrichedPlace={enrichedPlace} />
             ) : panel.type === "transport" && orderedStops[panel.stopIdx] && orderedStops[panel.stopIdx + 1] ? (
               <TransportPanel
-                orderedStops={orderedStops}
-                selectedStopIdx={panel.stopIdx}
                 fromStop={orderedStops[panel.stopIdx]}
                 toStop={orderedStops[panel.stopIdx + 1]}
                 transportMode={transportMode}

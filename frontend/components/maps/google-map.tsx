@@ -17,6 +17,8 @@ type MapSegment = {
   to: { lat: number; lng: number };
   travelMode: MapTravelMode;
   color?: string;
+  weight?: number;
+  opacity?: number;
 };
 
 export type { MapSegment };
@@ -250,8 +252,8 @@ export function GoogleMap({
           preserveViewport: true,
           polylineOptions: {
             strokeColor: currentSegment.color || "#3abdff",
-            strokeOpacity: 0.9,
-            strokeWeight: 5,
+            strokeOpacity: currentSegment.opacity ?? 0.9,
+            strokeWeight: currentSegment.weight ?? 5,
           },
         });
         directionsRendererRefs.current.push(directionsRenderer);
@@ -272,8 +274,8 @@ export function GoogleMap({
               path: [currentSegment.from, currentSegment.to],
               geodesic: true,
               strokeColor: currentSegment.color || "#3abdff",
-              strokeOpacity: 0.9,
-              strokeWeight: 4,
+              strokeOpacity: currentSegment.opacity ?? 0.9,
+              strokeWeight: Math.max(3, (currentSegment.weight ?? 5) - 1),
               map,
             });
             polylineRefs.current.push(fallbackPolyline);

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { DEMO_ITINERARIES } from "@/app/data/demo-itineraries";
-import { GoogleMap } from "@/components/maps/google-map";
+import { GoogleMap, type MapSegment } from "@/components/maps/google-map";
+import { buildGoogleMapsDirectionsUrl } from "@/lib/google-maps-url";
 import { agentService, tripsService } from "@/services/api/services";
 import { getSession } from "@/services/auth/session";
 import { getCurrentTripId } from "@/services/trips/currentTrip";
@@ -175,12 +176,42 @@ export default function ExplorePage() {
       visiblePlaces.map((place) => ({
         id: place.id,
         title: place.name,
-        label: place.source === "trip" ? "T" : undefined,
+        label: place.source === "trip" ? String(tripPlaces.findIndex((p) => p.id === place.id) + 1) : undefined,
         color: place.id === selectedPlace?.id ? "#ff6b6b" : place.color,
         position: place.position,
       })),
-    [selectedPlace?.id, visiblePlaces]
+    [selectedPlace?.id, tripPlaces, visiblePlaces]
   );
+
+  const tripRouteSegments = useMemo<MapSegment[]>(() => {
+    if (activeFilter !== "當前行程" || tripPlaces.length < 2) {
+      return [];
+    }
+    return tripPlaces.slice(0, -1).flatMap((place, index) => {
+      const next = tripPlaces[index + 1];
+      if (!next) {
+        return [];
+      }
+      return [{
+        from: place.position,
+        to: next.position,
+        travelMode: "TRANSIT",
+        color: "#3abdff",
+        weight: 5,
+        opacity: 0.9,
+      }];
+    });
+  }, [activeFilter, tripPlaces]);
+
+  const tripMapsUrl = useMemo(() => {
+    if (activeFilter !== "當前行程") {
+      return "";
+    }
+    return buildGoogleMapsDirectionsUrl(
+      tripPlaces.map((place) => ({ name: place.name, location: place.position })),
+      "TRANSIT"
+    );
+  }, [activeFilter, tripPlaces]);
 
   return (
     <div className="relative w-full h-screen overflow-hidden" style={{ backgroundColor: "#dbe9d8" }}>
@@ -189,8 +220,21 @@ export default function ExplorePage() {
         center={TAIPEI_CENTER}
         zoom={12}
         markers={markers}
+        segments={tripRouteSegments}
         onMarkerClick={setSelectedPinId}
       />
+
+      {tripMapsUrl ? (
+        <a
+          href={tripMapsUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="absolute z-10 right-4 md:right-10 top-[108px] md:top-6 h-[36px] px-4 rounded-[18px] text-[12px] font-semibold text-white inline-flex items-center"
+          style={{ background: "#3abdff", boxShadow: "0px 2px 8px rgba(0,0,0,0.18)" }}
+        >
+          在 Google Maps 開啟行程 ↗
+        </a>
+      ) : null}
 
       {/* ── Search bar + filters ── */}
 
