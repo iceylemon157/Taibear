@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { DEMO_ITINERARIES } from "@/app/data/demo-itineraries";
-import { GoogleMap, ensureGoogleMapsApi, type MapSegment } from "@/components/maps/google-map";
+import { GoogleMap, ensureGoogleMapsApi, type MapPath } from "@/components/maps/google-map";
 import { buildGoogleMapsDirectionsUrl } from "@/lib/google-maps-url";
-import { agentService, tripsService } from "@/services/api/services";
+import { agentService, mapsService, tripsService } from "@/services/api/services";
 import { getSession } from "@/services/auth/session";
 import { getCurrentTripId } from "@/services/trips/currentTrip";
 
@@ -91,6 +91,7 @@ export default function ExplorePage() {
   const sessionTokenRef = useRef<any>(null);
   const predictionsCacheRef = useRef<Map<string, PlacePrediction[]>>(new Map());
   const hasActiveSearchResult = searchPlaces.length > 0;
+  const [tripRoutePath, setTripRoutePath] = useState<MapPath | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -368,24 +369,60 @@ export default function ExplorePage() {
   const mapCenter = selectedPlace?.position ?? TAIPEI_CENTER;
   const mapZoom = hasActiveSearchResult ? 16 : 12;
 
-  const tripRouteSegments = useMemo<MapSegment[]>(() => {
-    if (hasActiveSearchResult || activeFilter !== "當前行程" || tripPlaces.length < 2) {
-      return [];
-    }
-    return tripPlaces.slice(0, -1).flatMap((place, index) => {
-      const next = tripPlaces[index + 1];
-      if (!next) {
-        return [];
+  useEffect(() => {
+    let cancelled = false;
+
+    async function computeTripRoute() {
+      if (hasActiveSearchResult || activeFilter !== "當前行程" || tripPlaces.length < 2) {
+        setTripRoutePath(null);
+        return;
       }
-      return [{
-        from: place.position,
-        to: next.position,
-        travelMode: "TRANSIT",
-        color: "#3abdff",
-        weight: 5,
-        opacity: 0.9,
-      }];
-    });
+
+      try {
+        const result = await mapsService.computeRoute({
+          origin: tripPlaces[0].position,
+          destination: tripPlaces[tripPlaces.length - 1].position,
+          travelMode: "TRANSIT",
+          intermediates: tripPlaces.slice(1, -1).map((place) => place.position),
+        });
+        if (cancelled) {
+          return;
+        }
+        if (result.path.length >= 2) {
+          setTripRoutePath({
+            points: result.path,
+            color: "#3abdff",
+            weight: 5,
+            opacity: 0.9,
+          });
+          return;
+        }
+      } catch {
+        if (cancelled) {
+          return;
+        }
+      }
+
+      const fallbackPoints = tripPlaces.map((place) => place.position);
+      if (!cancelled) {
+        setTripRoutePath(
+          fallbackPoints.length >= 2
+            ? {
+                points: fallbackPoints,
+                color: "#3abdff",
+                weight: 4,
+                opacity: 0.75,
+              }
+            : null
+        );
+      }
+    }
+
+    void computeTripRoute();
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeFilter, hasActiveSearchResult, tripPlaces]);
 
   const tripMapsUrl = useMemo(() => {
@@ -405,7 +442,7 @@ export default function ExplorePage() {
         center={mapCenter}
         zoom={mapZoom}
         markers={markers}
-        segments={tripRouteSegments}
+        path={tripRoutePath}
         onMarkerClick={setSelectedPinId}
       />
 

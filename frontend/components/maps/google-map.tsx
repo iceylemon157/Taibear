@@ -22,6 +22,13 @@ type MapSegment = {
   opacity?: number;
 };
 
+export type MapPath = {
+  points: Array<{ lat: number; lng: number }>;
+  color?: string;
+  weight?: number;
+  opacity?: number;
+};
+
 export type { MapSegment };
 
 type GoogleMapProps = {
@@ -31,6 +38,8 @@ type GoogleMapProps = {
   markers?: MapMarker[];
   segment?: MapSegment | null;
   segments?: MapSegment[];
+  path?: MapPath | null;
+  paths?: MapPath[];
   onMarkerClick?: (markerId: string) => void;
 };
 
@@ -127,6 +136,8 @@ export function GoogleMap({
   markers = [],
   segment = null,
   segments = [],
+  path = null,
+  paths = [],
   onMarkerClick,
 }: GoogleMapProps) {
   const mapRef = useRef<HTMLDivElement | null>(null);
@@ -239,7 +250,27 @@ export function GoogleMap({
 
     const pointsToFit = [...markerPoints];
 
-    const segmentList = segments.length > 0 ? segments : segment ? [segment] : [];
+    const pathList = paths.length > 0 ? paths : path ? [path] : [];
+
+    for (const currentPath of pathList) {
+      if (!currentPath.points || currentPath.points.length < 2) {
+        continue;
+      }
+      for (const point of currentPath.points) {
+        pointsToFit.push(point);
+      }
+      const polyline = new maps.Polyline({
+        path: currentPath.points,
+        geodesic: true,
+        strokeColor: currentPath.color || "#3abdff",
+        strokeOpacity: currentPath.opacity ?? 0.92,
+        strokeWeight: currentPath.weight ?? 5,
+        map,
+      });
+      polylineRefs.current.push(polyline);
+    }
+
+    const segmentList = pathList.length > 0 ? [] : segments.length > 0 ? segments : segment ? [segment] : [];
 
     if (segmentList.length > 0) {
       const directionsService = new maps.DirectionsService();
@@ -291,7 +322,7 @@ export function GoogleMap({
       map.setCenter(center);
       map.setZoom(zoom);
     }
-  }, [center, markerPoints, markers, onMarkerClick, segment, segments, zoom]);
+  }, [center, markerPoints, markers, onMarkerClick, path, paths, segment, segments, zoom]);
 
   if (errorMessage) {
     return (

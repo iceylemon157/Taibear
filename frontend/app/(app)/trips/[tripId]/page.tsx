@@ -3,9 +3,9 @@
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEMO_ITINERARIES } from "@/app/data/demo-itineraries";
-import { GoogleMap, type MapTravelMode } from "@/components/maps/google-map";
+import { GoogleMap, type MapPath, type MapTravelMode } from "@/components/maps/google-map";
 import { buildGoogleMapsDirectionsUrl } from "@/lib/google-maps-url";
-import { agentService, tripsService } from "@/services/api/services";
+import { agentService, mapsService, tripsService } from "@/services/api/services";
 import type { EnrichResponse, EnrichedPlace, Trip, TripStop } from "@/services/api/types";
 import { getSession } from "@/services/auth/session";
 import { clearCurrentTripId, getHiddenSpot, setCurrentTripId } from "@/services/trips/currentTrip";
@@ -282,6 +282,56 @@ function TransportPanel({
   onTransportModeChange: (mode: MapTravelMode) => void;
 }) {
   const heuristic = getSegmentHeuristic(fromStop, toStop);
+  const [routePath, setRoutePath] = useState<MapPath | null>(null);
+  const [routeError, setRouteError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function computeRoute() {
+      try {
+        const result = await mapsService.computeRoute({
+          origin: fromStop.location,
+          destination: toStop.location,
+          travelMode: transportMode,
+        });
+        if (cancelled) {
+          return;
+        }
+        if (result.path.length >= 2) {
+          setRoutePath({
+            points: result.path,
+            color: "#3abdff",
+            weight: 6,
+            opacity: 0.95,
+          });
+          setRouteError("");
+          return;
+        }
+        setRoutePath(null);
+        setRouteError("此交通模式目前無可顯示路線，已改用直線示意。");
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        setRoutePath(null);
+        setRouteError("路線計算暫時失敗，已改用直線示意。");
+      }
+    }
+
+    void computeRoute();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    fromStop.location.lat,
+    fromStop.location.lng,
+    toStop.location.lat,
+    toStop.location.lng,
+    transportMode,
+  ]);
+
   const mapsUrl = buildGoogleMapsDirectionsUrl(
     [
       { name: fromStop.name, location: fromStop.location },
@@ -321,7 +371,8 @@ function TransportPanel({
             position: toStop.location,
           },
         ]}
-        segment={{
+        path={routePath}
+        segment={routePath ? null : {
           from: fromStop.location,
           to: toStop.location,
           travelMode: transportMode,
@@ -330,6 +381,11 @@ function TransportPanel({
           opacity: 0.95,
         }}
       />
+      {routeError ? (
+        <p className="text-[11px] mb-4" style={{ color: "#999" }}>
+          {routeError}
+        </p>
+      ) : null}
 
       {/* Transport options */}
       <p className="text-[13px] font-semibold text-[#141414] mb-3">選擇交通方式</p>

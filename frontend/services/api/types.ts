@@ -239,3 +239,22 @@ export interface RealtimeListResponse<T> {
   count: number;
   cached: boolean;
 }
+
+export interface RoutePoint {
+  lat: number;
+  lng: number;
+}
+
+export interface ComputeRoutePayload {
+  origin: RoutePoint;
+  destination: RoutePoint;
+  travelMode: "TRANSIT" | "WALKING" | "DRIVING";
+  intermediates?: RoutePoint[];
+}
+
+export interface ComputeRouteResponse {
+  path: RoutePoint[];
+  distanceMeters: number;
+  durationSeconds: number;
+  cached: boolean;
+}

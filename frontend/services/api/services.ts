@@ -3,6 +3,8 @@ import type {
   AuthPayload,
   AuthTokens,
   CheckHotelResponse,
+  ComputeRoutePayload,
+  ComputeRouteResponse,
   CreateUserPayload,
   EnrichResponse,
   HotelSearchResponse,
@@ -207,6 +209,15 @@ export const realtimeService = {
   getUbike(lat: number, lng: number) {
     return apiRequest<{ stations: unknown[]; count: number; cached: boolean }>("/api/bff/realtime/ubike", {
       query: { lat, lng },
+    });
+  },
+};
+
+export const mapsService = {
+  computeRoute(payload: ComputeRoutePayload) {
+    return apiRequest<ComputeRouteResponse>("/api/bff/maps/routes", {
+      method: "POST",
+      body: payload,
     });
   },
 };
