@@ -1,195 +1,109 @@
-# Taibear — 台北智慧旅遊系統
+# 🐻 Taibear — 帶你玩透 Taipei 新感旅
 
-A modular microservices system for personalised travel planning in Taipei: preference-based spot search, AI-powered route planning, real-time disruption monitoring, and trip lifecycle management.
+> 從「安心訂房」到「在地探索」的完整 AI 旅伴
+>
+> 我們做了 **合法住宿核實 + AI 個人化行程規劃** 給 **在台旅客與在地年輕人** 用，解決「違法旅宿風險 × 旅遊資訊碎片化 × 隱藏景點無人知」。
 
----
-
-## Architecture
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        Frontend (TBD)                            │
-└──────────────────────────────┬───────────────────────────────────┘
-                               │ HTTP
-          ┌────────────────────┼────────────────────┐
-          ▼                    ▼                    ▼
-┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│  user_profile    │  │     agent/       │  │  trip_manager/   │
-│  _manager        │  │  (port 8001)     │  │  (port 8003)     │
-│  (port 8004)     │  │                  │  │                  │
-│  UserPreference  │─►│  Gemini ADK      │─►│  trip lifecycle  │
-│  CRUD            │  │  /search         │  │  disruption      │
-│  JSON | DB       │  │  /plan           │  │  replanning      │
-└────────┬─────────┘  │  /enrich         │  └────────┬─────────┘
-         │            └──────┬───────────┘           │
-         │                   │                       │
-         ▼                   ▼                       ▼
-┌────────────────────────────────────┐  ┌──────────────────────┐
-│         PostgreSQL (port 5432)     │  │  realtime_monitor/   │
-│  users · items · places            │  │  (library)           │
-│  item_places · daily_usage         │  │  CWA weather         │
-└────────────────────────────────────┘  │  TDX traffic (stub)  │
-                                        └──────────────────────┘
-```
-
-### Data flows
-
-1. User submits preferences → `user_profile_manager` stores profile (JSON or DB)
-2. Profile + query → `agent` runs Gemini ADK pipeline → returns 3 ranked routes
-3. Chosen route → `trip_manager` creates a managed trip (JSON store)
-4. `realtime_monitor` polls CWA / TDX → `trip_manager` detects disruptions → calls `agent /plan` to replan
+![2026 YTP 電客松](https://img.shields.io/badge/2026_YTP_電客松-賽題A_行旅台台-3ABDFF?style=flat-square)
+![AI 智慧旅遊](https://img.shields.io/badge/AI_智慧旅遊高峰-臺灣旅市局-5edcb4?style=flat-square)
 
 ---
 
-## Modules
+## 🔴 問題 → 解法
 
-| Module | Port | Description |
-|--------|------|-------------|
-| [`agent/`](agent/) | 8001 | Gemini 2.5 Flash + Google ADK; `/search`, `/plan`, `/enrich` |
-| [`trip_manager/`](trip_manager/) | 8003 | Stateful trip lifecycle; disruption detection; replanning |
-| [`user_profile_manager/`](user_profile_manager/) | 8004 | UserPreference CRUD; JSON or Postgres backend |
-| [`realtime_monitor/`](realtime_monitor/) | — (library) | CWA weather fetcher; TDX traffic stub |
-| [`frontend/`](frontend/) | 3000 | React + Vite app (WIP) |
+| 現在的痛點 | Taibear 的解法 |
+|---|---|
+| 違法旅宿難辨識，消費者承受風險極高 | Chrome 插件即時比對交通部合法旅宿資料庫（每日更新） |
+| 旅遊資訊散落 PTT / IG / Dcard，要花費時精篩 | AI 整合多平台資料，個人化生成可執行旅遊行程 |
+| 隱藏景點無人知，多數旅客資訊不足 | 用戶投稿秘境的景點，社群篩選 + 有信度交流 |
 
 ---
 
-## Database
-
-### Engine
-
-PostgreSQL 16, managed by Docker Compose (`db` service). All services that need persistence connect via `DATABASE_URL`.
-
-### Schema (`agent/db/models.py`)
+## 🗺️ 使用流程
 
 ```
-users
-  id          BIGINT PK        -- Telegram user_id
-  username    VARCHAR(255)
-  created_at  TIMESTAMPTZ
-
-items                          -- scraped content (IG reels, YouTube, etc.)
-  id          SERIAL PK
-  user_id     BIGINT FK→users
-  platform    VARCHAR(20)      -- "instagram" | "youtube" | ...
-  url         TEXT UNIQUE
-  title       TEXT
-  raw_metadata JSONB
-  created_at  TIMESTAMPTZ
-
-places                         -- extracted spots from items
-  id          SERIAL PK
-  store_name  VARCHAR(255)
-  domain      VARCHAR(20)      -- "taipei" etc.
-  location    VARCHAR(50)
-  category    VARCHAR(50)
-  vibe        VARCHAR(50)[]    -- ARRAY of vibe tags
-  address     VARCHAR(500)
-  description TEXT             -- LLM-generated summary
-  created_at  TIMESTAMPTZ
-
-item_places                    -- many-to-many: items ↔ places
-  item_id     INT FK→items  (CASCADE DELETE)
-  place_id    INT FK→places
-  PK(item_id, place_id)
-
-daily_usage                    -- rate-limit counters
-  user_id     BIGINT           -- 0 = global bot-level
-  date        DATE
-  llm_calls   INT
-  other_calls INT
-  PK(user_id, date)
+找到住宿 → 安裝插件核實 → 辨識 / 預警 → AI 規劃行程 → 探索我家巷弄
+(Booking.com    (Chrome 插件    (合法 →        (個人化 tag       (隱藏景點
+ 或 Taibear)     即時比對)        否則告知問題)   + prompt)         社群有信度)
 ```
-
-### User preferences (`user_profile_manager`)
-
-Stored either as **JSON files** (`user_profile_manager/users/<user_id>.json`) or in **Postgres** (controlled by `PROFILE_REPO_BACKEND` env var).
-
-```json
-{
-  "user_id": "alice",
-  "display_name": "Alice",
-  "country": "TW",
-  "preferred_languages": ["zh-TW"],
-  "age": 28,
-  "preferred_transportation": ["MRT", "walking"],
-  "selected_tags": ["文青", "咖啡廳", "展覽"],
-  "reels": [
-    { "url": "https://...", "text_content": "...", "auto_tags": ["老屋", "手沖"] }
-  ]
-}
-```
-
-### Trip data (`trip_manager`)
-
-Trips are persisted as JSON in `trip_manager/trips/<trip_id>.json`. No SQL table — the service is stateless between restarts except for the volume-mounted trips directory.
 
 ---
 
-## Quick Start (Docker)
+## 🛡️ 模組一｜訂房安全核實（Safe Stay）
 
+> 合法住宿辨識 × 風險預警
+
+- **Chrome 插件** — 瀏覽 Booking.com 等訂房頁面時，即時比對交通部合法旅宿資料庫（每日自動更新）
+- **即時彈出提示** — 合法顯示「Taibear 認證，安心旅宿 ✓」；不合法詳列原因（地址模糊、無消防登記、業者名稱不符...）
+- **平台房源推薦** — 輸入地點和偏好與交通需求，AI 從合法旅宿中給予推薦，附 Google Maps 連結
+- **一鍵上手探索** — 選定合法住宿後直接加入 Taibear，以此位置為起點規劃行程
+
+---
+
+## 🗺️ 模組二｜個人化在地探索（Play Taipei）
+
+> AI 行程規劃 × 隱藏景點社群
+
+- **貼文 AI 分析** — 貼上食記的時間 / 美食等的連結，AI 自動選 tag 建立個人偏好，登入即推播符合內容，解決「蒐集了但不知何時有空的日記」的問題
+- **多源資料整合** — PTT、Google Maps、Facebook、Instagram 資料驗真景點推薦，搭配 AI prompt 生成可執行探索行程
+- **我家巷弄** — 用戶自由投稿當地秘境景點，點數隱藏景點可見社群推薦數、真實照、秘笈；過隱藏景點專屬交流功能
+- **翻轉有信度** — 辨識合法住宿後，自動媒合行 10 分鐘步行圈的巷弄景點，逃出框框的人的世界有信度，被推薦景點若旅客「感謝推薦」時，上傳者也會收到解鎖通知
+
+---
+
+## 💡 為什麼兩個模組放在一起最強？
+
+安裝解決「住哪裡安全」的信任問題，探索模組解決「去哪裡好玩」的資訊碎片。兩者以**住宿位置**為標的串連，讓旅客從訂房的第一步無縫進入在地探索，形成完整的智慧旅遊服務鏈、我家巷弄和帶旅客在在地遊年成為「在地安到」，解決多數旅客與隱藏景點旅客資訊不足的問題。
+
+---
+
+## 🔌 Chrome Extension
+
+本資料夾為 Taibear Chrome 插件原始碼。
+
+### 支援平台
+- [Booking.com](https://www.booking.com)
+- [Airbnb](https://www.airbnb.com)
+
+### 功能
+- 進入房源頁面自動偵測，右上角彈出合法 / 風險警示
+- GPS + 執照號碼 + 名稱三層比對，對應交通部 15,585 筆合法旅宿
+- 違規房源依缺失資訊（地址、電話、執照）產生個人化風險診斷
+- 合法房源一鍵加入 Taibear 安排行程
+
+### 本地啟動
 ```bash
-# 1. Copy and fill in secrets
-cp .env.example .env
-# Required: POSTGRES_PASSWORD, GOOGLE_API_KEY, GOOGLE_MAPS_API_KEY, YTP_API_KEY
+# 安裝依賴
+pip install fastapi uvicorn
 
-# 2. Start all services
-docker compose up --build
+# 啟動本地 API（不需要資料庫）
+cd Hotel-json
+uvicorn hotel_api_local:app --port 8000
 
-# 3. Health checks
-curl http://localhost:8001/health   # agent
-curl http://localhost:8003/health   # trip_manager
-curl http://localhost:8004/health   # user_profile_manager
-```
-
-### Service URLs
-
-| Service | URL |
-|---------|-----|
-| Agent (trip planner) | http://localhost:8001 |
-| Agent Swagger UI | http://localhost:8001/docs |
-| Trip Manager | http://localhost:8003 |
-| User Profile Manager | http://localhost:8004 |
-
----
-
-## Quick Start (Local dev)
-
-```bash
-# Agent
-cd agent
-uv sync
-cp .env.example .env   # fill in GOOGLE_API_KEY, GOOGLE_MAPS_API_KEY, DATABASE_URL
-uv run uvicorn main:app --reload --port 8001
-
-# Trip Manager (from repo root)
-python -m trip_manager.main
-
-# User Profile Manager (from repo root)
-python -m user_profile_manager.main
+# Chrome 載入插件
+# chrome://extensions/ → 開啟開發人員模式 → 載入未封裝項目 → 選此資料夾
 ```
 
 ---
 
-## Environment Variables
+## ⚙️ 技術棧
 
-See [`.env.example`](.env.example) for the full list. Key variables:
-
-| Variable | Used by | Description |
-|----------|---------|-------------|
-| `POSTGRES_PASSWORD` | all | Postgres password (required) |
-| `POSTGRES_DB` | all | Database name (default: `ytp`) |
-| `GOOGLE_API_KEY` | agent | Gemini API key |
-| `GOOGLE_MAPS_API_KEY` | agent | Places API + Distance Matrix |
-| `YTP_API_KEY` | agent, trip_manager | Internal service auth key |
-| `CWA_API_KEY` | realtime_monitor | Central Weather Administration |
-| `TDX_CLIENT_ID/SECRET` | realtime_monitor | TDX traffic API |
-| `PROFILE_REPO_BACKEND` | user_profile_manager | `json` (default) or `db` |
+| 層面 | 技術 |
+|---|---|
+| 合法旅宿資料庫 | PostgreSQL × 交通部開放資料集（每日更新） |
+| 瀏覽器插件 | Chrome Extension Manifest V3 |
+| AI 行程規劃 | LLM / GenAI + RAG |
+| 社群資料分析 | NLP · PTT / IG / FB 爬蟲採集 |
+| 地圖與導覽 | Google Maps API |
+| 個人化推薦 | 標籤選取 + 協同過濾演算法 |
 
 ---
 
-## Supporting Tools
+## 🎯 對應賽題最終目標
 
-| File | Description |
-|------|-------------|
-| `gmap_scraper.py` | Google Maps place/search data scraper |
-| `route_choice_sample.json` | Sample agent output (3 recommended routes) |
+- ✅ **便民化服務網站** — 提供旅客直接操作的整合式網站介面（訂房 / 住宿 / 探索 / 投稿）
+- ✅ **AI 智能代理人** — 以對話與 prompt 方式完成住宿核查、行程規劃與即時推薦
+
+---
+
+*2026 YTP 電客松 · 賽題 A 行旅台台 · 方案定位：臺灣旅市局規則即據局*
