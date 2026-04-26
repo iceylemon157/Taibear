@@ -107,6 +107,17 @@ const MOCK_DB = {
   },
 };
 
+// Frontend is exposed on localhost:3000 in docker compose.
+const APP_BASE_URL = "http://localhost:3000";
+const APP_ROUTES = {
+  plan: "/trips?mode=plan",
+  hotels: "/hotels",
+};
+
+function buildAppUrl(path) {
+  return `${APP_BASE_URL.replace(/\/+$/, "")}${path}`;
+}
+
 function showState(state, hotelData) {
   ["state-scanning", "state-safe", "state-unsafe"].forEach(id =>
     document.getElementById(id).classList.add("hidden")
@@ -338,6 +349,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (response?.success) {
           btn.textContent = t("btnAddSaved");
           btn.classList.add("saved");
+
+          const planUrl = new URL(buildAppUrl(APP_ROUTES.plan));
+          if (response?.data?.id !== undefined && response?.data?.id !== null) {
+            planUrl.searchParams.set("savedHotelId", String(response.data.id));
+          }
+          planUrl.searchParams.set("source", "booking-extension");
+          chrome.tabs.create({ url: planUrl.toString() });
         } else {
           btn.disabled = false;
           btn.textContent = t("btnAdd");
@@ -353,7 +371,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("btn-leave").addEventListener("click", () => {
-    chrome.tabs.create({ url: "https://taibear.app/search" });
+    const hotelsUrl = new URL(buildAppUrl(APP_ROUTES.hotels));
+    hotelsUrl.searchParams.set("source", "booking-extension");
+    chrome.tabs.create({ url: hotelsUrl.toString() });
   });
 
   document.getElementById("btn-learn").addEventListener("click", () => {

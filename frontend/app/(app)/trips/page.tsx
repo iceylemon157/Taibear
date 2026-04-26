@@ -13,7 +13,7 @@ import type {
   UserProfile,
 } from "@/services/api/types";
 import { getSession } from "@/services/auth/session";
-import { getCurrentTripId, setCurrentTripId } from "@/services/trips/currentTrip";
+import { getCurrentTripId, getHiddenSpot, setCurrentTripId } from "@/services/trips/currentTrip";
 
 const STYLE_TAGS = [
   { label: "🍜 美食探索", active: true },
@@ -31,6 +31,7 @@ type RecCardItem = {
   desc: string;
   duration: string;
   tags: string[];
+  hiddenSpotName?: string;
   tripId?: string;
 };
 
@@ -209,12 +210,15 @@ function countEnrichedPlaces(enrich: EnrichResponse): number {
 }
 
 function tripToRecCard(trip: Trip): RecCardItem {
+  const hiddenSpot = getHiddenSpot(trip);
+
   return {
     emoji: "🧭",
     title: trip.route_name || `行程 ${trip.trip_id}`,
     desc: `${trip.theme || "城市探索"} · ${trip.stops.length} 個景點`,
     duration: toDurationLabel(trip.stops.length),
-    tags: [trip.theme || "旅遊", trip.status],
+    tags: [trip.theme || "旅遊", "隱藏景點", trip.status],
+    hiddenSpotName: hiddenSpot?.name,
     tripId: trip.trip_id,
   };
 }
@@ -865,6 +869,7 @@ function OngoingTripCard({
   }
 
   const stopCount = trip.stops?.length ?? 0;
+  const hiddenSpot = getHiddenSpot(trip);
 
   return (
     <div
@@ -885,6 +890,11 @@ function OngoingTripCard({
       <p className="text-[13px] mt-1" style={{ color: "#999" }}>
         📅 {formatDateLabel(trip.trip_date)} · 📍 {stopCount} 個景點 · 🧭 {trip.theme || "城市探索"}
       </p>
+      {hiddenSpot ? (
+        <p className="text-[12px] mt-1 font-semibold" style={{ color: "#e6a500" }}>
+          隱藏景點：{hiddenSpot.name}
+        </p>
+      ) : null}
 
       <div className="absolute bottom-4 right-4 flex gap-2">
         {onOpen ? (
@@ -914,6 +924,7 @@ function RecCard({
   desc,
   duration,
   tags,
+  hiddenSpotName,
   onClick,
   selected,
 }: {
@@ -922,6 +933,7 @@ function RecCard({
   desc: string;
   duration: string;
   tags: string[];
+  hiddenSpotName?: string;
   onClick?: () => void;
   selected?: boolean;
 }) {
@@ -949,6 +961,11 @@ function RecCard({
       </div>
       <p className="mt-3 text-[14px] font-semibold text-black">{title}</p>
       <p className="text-[11px] mt-1 leading-[16px]" style={{ color: "#999" }}>{desc}</p>
+      {hiddenSpotName ? (
+        <p className="text-[11px] mt-1 font-semibold" style={{ color: "#e6a500" }}>
+          隱藏景點：{hiddenSpotName}
+        </p>
+      ) : null}
       <div className="flex gap-2 mt-3 flex-wrap">
         {tags.map((tag) => (
           <span key={tag} className="h-[20px] px-3 rounded-[20px] text-[10px] leading-[20px]"
@@ -987,6 +1004,8 @@ function TripDetailPanel({
   }
 
   const orderedStops = [...(trip.stops || [])].sort((a, b) => a.step_order - b.step_order);
+  const hiddenSpot = getHiddenSpot(trip);
+  const hiddenStopId = hiddenSpot?.stop_id;
   const hasEnriched = Boolean(enrichedRoute && enrichedRoute.places.length > 0);
 
   return (
@@ -1010,6 +1029,14 @@ function TripDetailPanel({
       <p className="text-[12px] mt-1" style={{ color: "#777" }}>
         📅 {formatDateLabel(trip.trip_date)} · 🧭 {trip.theme || "城市探索"} · 📍 {orderedStops.length} 個景點
       </p>
+      {hiddenSpot ? (
+        <div
+          className="inline-flex items-center mt-2 px-3 h-[24px] rounded-[12px] text-[11px] font-semibold"
+          style={{ background: "#fff5dc", color: "#e6a500" }}
+        >
+          隱藏景點：{hiddenSpot.name}
+        </div>
+      ) : null}
 
       {trip.google_maps_url ? (
         <a
@@ -1026,20 +1053,34 @@ function TripDetailPanel({
       <div className="mt-3">
         <p className="text-[12px] font-semibold" style={{ color: "#555" }}>路線停靠點</p>
         <div className="mt-2 flex flex-col gap-2">
-          {orderedStops.map((stop) => (
-            <div
-              key={stop.stop_id}
-              className="rounded-[10px] border px-3 py-2"
-              style={{ borderColor: "#eee" }}
-            >
-              <p className="text-[12px] font-semibold text-[#222]">
-                {stop.step_order}. {stop.name}
-              </p>
-              <p className="text-[11px] mt-1" style={{ color: "#777" }}>
-                {stop.suggested_time || "時間未指定"} · {stop.reasoning || "無補充說明"}
-              </p>
-            </div>
-          ))}
+          {orderedStops.map((stop) => {
+            const hidden = hiddenStopId === stop.stop_id;
+
+            return (
+              <div
+                key={stop.stop_id}
+                className="rounded-[10px] border px-3 py-2"
+                style={{ borderColor: "#eee" }}
+              >
+                <p className="text-[12px] font-semibold text-[#222]">
+                  {stop.step_order}. {stop.name}
+                </p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <p className="text-[11px]" style={{ color: "#777" }}>
+                    {stop.suggested_time || "時間未指定"} · {stop.reasoning || "無補充說明"}
+                  </p>
+                  {hidden ? (
+                    <span
+                      className="h-[20px] px-2.5 rounded-[10px] text-[10px] leading-[20px] font-semibold"
+                      style={{ background: "#fff5dc", color: "#e6a500" }}
+                    >
+                      隱藏景點
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

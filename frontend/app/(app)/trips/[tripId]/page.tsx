@@ -8,7 +8,7 @@ import { buildGoogleMapsDirectionsUrl } from "@/lib/google-maps-url";
 import { agentService, tripsService } from "@/services/api/services";
 import type { EnrichResponse, EnrichedPlace, Trip, TripStop } from "@/services/api/types";
 import { getSession } from "@/services/auth/session";
-import { clearCurrentTripId, setCurrentTripId } from "@/services/trips/currentTrip";
+import { clearCurrentTripId, getHiddenSpot, setCurrentTripId } from "@/services/trips/currentTrip";
 
 const CONIC_BG = "conic-gradient(from 90deg at 50% 50%, rgb(254,243,218) -26%, rgb(208,239,255) 13%, rgb(231,241,237) 33%, rgb(251,243,221) 52%, rgb(253,243,219) 67%, rgb(254,243,218) 74%, rgb(208,239,255) 113%)";
 
@@ -24,10 +24,11 @@ function formatDayDate(dateStr: string): string {
   return `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")} 星期${days[d.getDay()]}`;
 }
 
-function getCategoryChip(stop: TripStop): { label: string; bg: string; color: string } {
+function getCategoryChip(stop: TripStop, hidden = false): { label: string; bg: string; color: string } {
+  if (hidden) return { label: "隱藏景點", bg: "#fef3da", color: "#e6a500" };
+
   const r = (stop.reasoning + " " + stop.name).toLowerCase();
   if (r.includes("住宿") || r.includes("飯店") || r.includes("hotel")) return { label: "安全住宿", bg: "#e0f4ff", color: "#3abdff" };
-  if (r.includes("隱藏") || r.includes("秘") || r.includes("私藏")) return { label: "隱藏景點", bg: "#fef3da", color: "#e6a500" };
   if (r.includes("夜市") || r.includes("宵夜")) return { label: "美食", bg: "#fef3da", color: "#e6a500" };
   if (r.includes("美食") || r.includes("餐") || r.includes("吃") || r.includes("市場")) return { label: "美食", bg: "#fef3da", color: "#e6a500" };
   if (r.includes("購物") || r.includes("商場") || r.includes("逛")) return { label: "購物", bg: "#e0f4ff", color: "#3abdff" };
@@ -104,10 +105,6 @@ function getTransitLabel(fromStop: TripStop, toStop: TripStop): string {
   return `🚗 車行 ${heuristic.minutesByMode.DRIVING} 分`;
 }
 
-function isHiddenSpot(stop: TripStop): boolean {
-  return (stop.reasoning + " " + stop.name).toLowerCase().includes("隱藏");
-}
-
 function tripToPlannedRoute(trip: Trip) {
   const stops = [...(trip.stops || [])].sort((a, b) => a.step_order - b.step_order);
   return {
@@ -165,21 +162,22 @@ function PhotoCard({ bg, caption, sub, likes, height }: {
 
 // ── SpotDetailPanel ───────────────────────────────────────────────────────────
 
-function SpotDetailPanel({ stop, enrichedPlace }: {
+function SpotDetailPanel({ stop, enrichedPlace, hidden }: {
   stop: TripStop;
   enrichedPlace: EnrichedPlace | null;
+  hidden: boolean;
 }) {
-  const hidden = isHiddenSpot(stop);
-  const chip = getCategoryChip(stop);
+  const chip = getCategoryChip(stop, hidden);
   const photoCount = enrichedPlace?.photos.length ?? 138;
 
   return (
     <div className="px-5 pt-5 pb-16">
       {/* Hidden spot tag */}
       {hidden && (
-        <div className="inline-flex items-center mb-4 px-4 h-[43px] rounded-[20px]"
+        <div className="inline-flex items-center gap-2 mb-4 px-4 h-[43px] rounded-[20px]"
           style={{ background: "#ffd26a" }}>
-          <span className="text-white font-semibold text-[20px]">我家巷口隱藏美食</span>
+          <span style={{ fontSize: 18 }}>🏷</span>
+          <span className="text-white font-semibold text-[20px]">隱藏景點</span>
         </div>
       )}
 
@@ -507,9 +505,12 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
   }
 
   const orderedStops = [...(trip.stops || [])].sort((a, b) => a.step_order - b.step_order);
+  const hiddenSpot = getHiddenSpot(trip);
+  const hiddenStopId = hiddenSpot?.stop_id;
 
   // Find enriched place for current stop
   const currentStop = orderedStops[panel.stopIdx] ?? orderedStops[0];
+  const currentStopIsHidden = Boolean(currentStop && hiddenStopId === currentStop.stop_id);
   const enrichedPlace: EnrichedPlace | null = (() => {
     if (!enrichData || !currentStop) return null;
     for (const route of Object.values(enrichData.routes)) {
@@ -583,7 +584,8 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
               {orderedStops.map((stop, i) => {
                 const isSelected = panel.type === "spot" && panel.stopIdx === i;
                 const isLast = i === orderedStops.length - 1;
-                const chip = getCategoryChip(stop);
+                const hidden = hiddenStopId === stop.stop_id;
+                const chip = getCategoryChip(stop, hidden);
                 const emoji = getStopEmoji(stop);
 
                 return (
@@ -661,7 +663,11 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
               }}
             >
               {panel.type === "spot" && currentStop ? (
-                <SpotDetailPanel stop={currentStop} enrichedPlace={enrichedPlace} />
+                <SpotDetailPanel
+                  stop={currentStop}
+                  enrichedPlace={enrichedPlace}
+                  hidden={currentStopIsHidden}
+                />
               ) : panel.type === "transport" && orderedStops[panel.stopIdx] && orderedStops[panel.stopIdx + 1] ? (
                 <TransportPanel
                   fromStop={orderedStops[panel.stopIdx]}
@@ -720,7 +726,8 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
               {orderedStops.map((stop, i) => {
                 const isSelected = panel.type === "spot" && panel.stopIdx === i;
                 const isLast = i === orderedStops.length - 1;
-                const chip = getCategoryChip(stop);
+                const hidden = hiddenStopId === stop.stop_id;
+                const chip = getCategoryChip(stop, hidden);
                 const emoji = getStopEmoji(stop);
                 return (
                   <div key={stop.stop_id} className="relative">
@@ -766,7 +773,11 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
         ) : (
           <div className="flex-1" style={{ background: CONIC_BG }}>
             {panel.type === "spot" && currentStop ? (
-              <SpotDetailPanel stop={currentStop} enrichedPlace={enrichedPlace} />
+              <SpotDetailPanel
+                stop={currentStop}
+                enrichedPlace={enrichedPlace}
+                hidden={currentStopIsHidden}
+              />
             ) : panel.type === "transport" && orderedStops[panel.stopIdx] && orderedStops[panel.stopIdx + 1] ? (
               <TransportPanel
                 fromStop={orderedStops[panel.stopIdx]}
