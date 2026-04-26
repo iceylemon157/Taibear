@@ -12,6 +12,7 @@
 ---
 
 <video src="docs/videos/demo.mp4" controls width="600"></video>
+[Demo 影片](https://drive.google.com/file/d/1KyxQAW3z-Z5SWKTH-5JQRZJSshg4Jgps/view?usp=sharing)
 
 ---
 
