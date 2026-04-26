@@ -107,15 +107,86 @@ const MOCK_DB = {
   },
 };
 
-// Frontend is exposed on localhost:3000 in docker compose.
-const APP_BASE_URL = "http://localhost:3000";
+// Primary app host with fallback to original local frontend URL.
+const APP_BASE_URL_PRIMARY = "20.18.161.44:3000";
+const APP_BASE_URL_FALLBACK = "localhost:3000";
 const APP_ROUTES = {
   plan: "/trips?mode=plan",
   hotels: "/hotels",
 };
 
-function buildAppUrl(path) {
-  return `${APP_BASE_URL.replace(/\/+$/, "")}${path}`;
+function normalizeBaseUrl(baseUrl) {
+  const trimmed = String(baseUrl || "").trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `http://${trimmed}`;
+}
+
+function buildAppUrl(path, baseUrl = APP_BASE_URL_PRIMARY) {
+  const normalizedBase = normalizeBaseUrl(baseUrl);
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${normalizedBase}${normalizedPath}`;
+}
+
+function buildAppRouteUrl(path, queryParams, baseUrl = APP_BASE_URL_PRIMARY) {
+  const url = new URL(buildAppUrl(path, baseUrl));
+  Object.entries(queryParams || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    url.searchParams.set(key, String(value));
+  });
+  return url;
+}
+
+function openUrlWithFallback(primaryUrl, fallbackUrl) {
+  chrome.tabs.create({ url: primaryUrl.toString() }, (createdTab) => {
+    // If create fails, immediately fallback to original local route.
+    if (chrome.runtime.lastError) {
+      chrome.tabs.create({ url: fallbackUrl.toString() });
+      return;
+    }
+
+    if (!createdTab?.id || primaryUrl.toString() === fallbackUrl.toString()) {
+      return;
+    }
+
+    const tabId = createdTab.id;
+    let completed = false;
+
+    const cleanup = () => {
+      if (completed) return;
+      completed = true;
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      clearTimeout(cleanupTimer);
+    };
+
+    const onUpdated = (updatedTabId, changeInfo, tab) => {
+      if (updatedTabId !== tabId) return;
+
+      const currentUrl =
+        (typeof changeInfo.url === "string" && changeInfo.url) ||
+        (typeof tab?.url === "string" && tab.url) ||
+        "";
+
+      if (currentUrl.startsWith("chrome-error://")) {
+        chrome.tabs.update(tabId, { url: fallbackUrl.toString() });
+        cleanup();
+        return;
+      }
+
+      if (changeInfo.status === "complete") {
+        cleanup();
+      }
+    };
+
+    const cleanupTimer = setTimeout(cleanup, 12000);
+    chrome.tabs.onUpdated.addListener(onUpdated);
+  });
+}
+
+function openAppRoute(path, queryParams = {}) {
+  const primaryUrl = buildAppRouteUrl(path, queryParams, APP_BASE_URL_PRIMARY);
+  const fallbackUrl = buildAppRouteUrl(path, queryParams, APP_BASE_URL_FALLBACK);
+  openUrlWithFallback(primaryUrl, fallbackUrl);
 }
 
 function showState(state, hotelData) {
@@ -350,12 +421,13 @@ document.addEventListener("DOMContentLoaded", () => {
           btn.textContent = t("btnAddSaved");
           btn.classList.add("saved");
 
-          const planUrl = new URL(buildAppUrl(APP_ROUTES.plan));
-          if (response?.data?.id !== undefined && response?.data?.id !== null) {
-            planUrl.searchParams.set("savedHotelId", String(response.data.id));
-          }
-          planUrl.searchParams.set("source", "booking-extension");
-          chrome.tabs.create({ url: planUrl.toString() });
+          openAppRoute(APP_ROUTES.plan, {
+            savedHotelId:
+              response?.data?.id !== undefined && response?.data?.id !== null
+                ? response.data.id
+                : undefined,
+            source: "booking-extension",
+          });
         } else {
           btn.disabled = false;
           btn.textContent = t("btnAdd");
@@ -371,9 +443,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.getElementById("btn-leave").addEventListener("click", () => {
-    const hotelsUrl = new URL(buildAppUrl(APP_ROUTES.hotels));
-    hotelsUrl.searchParams.set("source", "booking-extension");
-    chrome.tabs.create({ url: hotelsUrl.toString() });
+    openAppRoute(APP_ROUTES.hotels, { source: "booking-extension" });
   });
 
   document.getElementById("btn-learn").addEventListener("click", () => {
