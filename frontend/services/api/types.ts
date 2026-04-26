@@ -141,6 +141,7 @@ export interface EnrichedPlace {
   place_name: string;
   place_id: string;
   folder: string;
+  photo_urls?: string[];
   reviews: {
     newest: EnrichReview[];
     most_relevant: EnrichReview[];

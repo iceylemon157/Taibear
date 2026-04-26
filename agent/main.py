@@ -26,6 +26,7 @@ from urllib.parse import quote
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Form, HTTPException, Security, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security.api_key import APIKeyHeader
 import httpx
 from pydantic import BaseModel, Field
@@ -107,6 +108,7 @@ class SearchRequest(BaseModel):
 
 class EnrichRequest(BaseModel):
     recommended_routes: list
+    max_places_per_route: int = Field(default=5, ge=1, le=10)
 
 
 class EnrichResponse(BaseModel):
@@ -298,11 +300,39 @@ async def enrich(request: EnrichRequest):
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,
-            lambda: enrich_routes(request.recommended_routes),
+            lambda: enrich_routes(
+                request.recommended_routes,
+                max_places_per_route=request.max_places_per_route,
+            ),
         )
+        for route_id, route_data in result.get("routes", {}).items():
+            for place in route_data.get("places", []):
+                folder = place.get("folder")
+                photos = place.get("photos", [])
+                if not folder or not photos:
+                    place["photo_urls"] = []
+                    continue
+                place["photo_urls"] = [
+                    f"/enrich-assets/{result['run_id']}/{route_id}/{quote(folder)}/{quote(filename)}"
+                    for filename in photos
+                ]
         return EnrichResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/enrich-assets/{run_id}/{route_id}/{folder}/{filename}", dependencies=[Security(verify_api_key)])
+def get_enrich_asset(run_id: str, route_id: str, folder: str, filename: str):
+    """回傳 enrichment 下載的景點照片。"""
+    run_dir = (config.ROUTES_DIR / run_id).resolve()
+    if not run_dir.exists() or run_dir.parent != config.ROUTES_DIR.resolve():
+        raise HTTPException(status_code=404, detail="找不到對應的 enrichment run")
+
+    target = (run_dir / route_id / folder / filename).resolve()
+    if not target.exists() or not str(target).startswith(str(run_dir)):
+        raise HTTPException(status_code=404, detail="找不到照片")
+
+    return FileResponse(target)
 
 
 # ── Hidden Spots ─────────────────────────────────────────────────────────────────

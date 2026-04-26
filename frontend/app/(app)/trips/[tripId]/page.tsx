@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useMemo, useRef, useState } from "react";
+import { use, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { DEMO_ITINERARIES } from "@/app/data/demo-itineraries";
 import { GoogleMap, type MapPath, type MapTravelMode } from "@/components/maps/google-map";
@@ -141,6 +141,9 @@ const TRANSPORT_OPTIONS: Array<{ mode: MapTravelMode; label: string; icon: strin
   { mode: "DRIVING", label: "計程車/開車", icon: "🚗" },
 ];
 
+const DEMO_ENRICH_CACHE = new Map<string, EnrichResponse>();
+const DEMO_ENRICH_INFLIGHT = new Map<string, Promise<EnrichResponse>>();
+
 // ── PhotoCard ─────────────────────────────────────────────────────────────────
 
 function PhotoCard({ bg, caption, sub, likes, height }: {
@@ -160,15 +163,98 @@ function PhotoCard({ bg, caption, sub, likes, height }: {
   );
 }
 
+function toAssetUrl(url: string): string {
+  if (!url) {
+    return "";
+  }
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("/api/")) {
+    return url;
+  }
+  if (url.startsWith("/")) {
+    return `/api/bff/agent${url}`;
+  }
+  return `/api/bff/agent/${url}`;
+}
+
+function FoldableText({
+  text,
+  maxChars,
+  className,
+  style,
+}: {
+  text: string;
+  maxChars: number;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const shouldFold = text.length > maxChars;
+  const preview = shouldFold && !expanded ? `${text.slice(0, maxChars).trim()}...` : text;
+
+  return (
+    <>
+      <p className={className} style={style}>{preview}</p>
+      {shouldFold ? (
+        <button
+          type="button"
+          className="text-[10px] mt-1"
+          style={{ color: "#3abdff" }}
+          onClick={() => setExpanded((prev) => !prev)}
+        >
+          {expanded ? "收合" : "展開更多"}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
 // ── SpotDetailPanel ───────────────────────────────────────────────────────────
 
-function SpotDetailPanel({ stop, enrichedPlace, hidden }: {
+function SpotDetailPanel({ stop, enrichedPlace, hidden, isEnrichLoading }: {
   stop: TripStop;
   enrichedPlace: EnrichedPlace | null;
   hidden: boolean;
+  isEnrichLoading: boolean;
 }) {
   const chip = getCategoryChip(stop, hidden);
-  const photoCount = enrichedPlace?.photos.length ?? 138;
+  const photoUrls = (enrichedPlace?.photo_urls ?? []).map(toAssetUrl).filter(Boolean);
+  const photoCount = photoUrls.length > 0 ? photoUrls.length : enrichedPlace?.photos.length ?? 138;
+  const hasRealEnrich = Boolean(enrichedPlace);
+  const reviewerEntries = (enrichedPlace?.reviews.most_relevant ?? []).slice(0, 2);
+  const commentEntries = (enrichedPlace?.reviews.newest ?? []).slice(0, 3);
+  const reviewerCards = reviewerEntries.length > 0
+    ? reviewerEntries.map((review, idx) => ({
+        key: `${review.author}-${idx}`,
+        name: review.author || "Google 用戶",
+        badgeText: `${"★".repeat(Math.max(1, review.rating || 0))}`,
+        cardBg: idx % 2 === 0 ? "#fff0d6" : "#e0ebff",
+        emoji: "🗺️",
+        text: review.text || "（無文字內容）",
+        footer: review.time || "Google 評論",
+      }))
+    : MOCK_REVIEWERS.map((reviewer) => ({
+        key: reviewer.name,
+        name: reviewer.name,
+        badgeText: reviewer.badgeText,
+        cardBg: reviewer.cardBg,
+        emoji: reviewer.emoji,
+        text: reviewer.text,
+        footer: `♥ ${reviewer.likes}`,
+      }));
+
+  const comments = commentEntries.length > 0
+    ? commentEntries.map((c, idx) => ({
+        key: `${c.author}-${idx}`,
+        name: c.author || "Google 用戶",
+        avatar: "🧑",
+        time: c.time || "近期",
+        text: c.text || "（無文字內容）",
+        verified: false,
+      }))
+    : MOCK_COMMENTS.map((c) => ({
+        key: c.name,
+        ...c,
+      }));
 
   return (
     <div className="px-5 pt-5 pb-16">
@@ -195,30 +281,58 @@ function SpotDetailPanel({ stop, enrichedPlace, hidden }: {
         <p className="text-[13px] font-semibold text-[#141414]">🖼️ 照片牆</p>
         <div className="rounded-[13px] px-3 h-[26px] flex items-center"
           style={{ background: "rgba(0,0,0,0.4)" }}>
-          <span className="text-white text-[10px] font-medium">📷 {photoCount} 張</span>
+          <span className="text-white text-[10px] font-medium">📷 {isEnrichLoading && !hasRealEnrich ? "載入中" : `${photoCount} 張`}</span>
         </div>
       </div>
 
       {/* Photo wall — 2-column masonry */}
-      <div className="flex gap-3 mb-5">
-        <div className="flex flex-col gap-3" style={{ flex: "0 0 calc(50% - 6px)" }}>
-          <PhotoCard bg="#b8d1bf" caption={stop.name} sub="日落黃金時刻" likes="2.4k" height={175} />
-          <PhotoCard bg="#e0c7ad" caption="巴洛克街屋" sub="百年建築立面" likes="891" height={130} />
+      {isEnrichLoading && !hasRealEnrich ? (
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <div key={`photo-loading-${idx}`} className="rounded-[14px]" style={{ height: 168, background: "#eef3f6" }} />
+          ))}
         </div>
-        <div className="flex flex-col gap-3" style={{ flex: "0 0 calc(50% - 6px)" }}>
-          <PhotoCard bg="#e5d9b2" caption="麻油麵線" sub="必吃在地小吃" likes="1.7k" height={130} />
-          <PhotoCard bg="#bfa6c7" caption="霞海城隍廟" sub="百年古廟香火" likes="956" height={175} />
+      ) : photoUrls.length > 0 ? (
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          {photoUrls.slice(0, 4).map((url, idx) => (
+            <div key={url} className="rounded-[14px] overflow-hidden" style={{ height: 168 }}>
+              <img src={url} alt={`${stop.name} photo ${idx + 1}`} className="w-full h-full object-cover" />
+            </div>
+          ))}
         </div>
-      </div>
+      ) : (
+        <div className="flex gap-3 mb-5">
+          <div className="flex flex-col gap-3" style={{ flex: "0 0 calc(50% - 6px)" }}>
+            <PhotoCard bg="#b8d1bf" caption={stop.name} sub="日落黃金時刻" likes="2.4k" height={168} />
+            <PhotoCard bg="#e0c7ad" caption="巴洛克街屋" sub="百年建築立面" likes="891" height={168} />
+          </div>
+          <div className="flex flex-col gap-3" style={{ flex: "0 0 calc(50% - 6px)" }}>
+            <PhotoCard bg="#e5d9b2" caption="麻油麵線" sub="必吃在地小吃" likes="1.7k" height={168} />
+            <PhotoCard bg="#bfa6c7" caption="霞海城隍廟" sub="百年古廟香火" likes="956" height={168} />
+          </div>
+        </div>
+      )}
 
       {/* User recommendations */}
       <div className="flex items-center gap-2 mb-3">
         <p className="text-[13px] font-semibold text-[#141414]">✨ 用戶推薦</p>
-        <p className="text-[10px]" style={{ color: "#999" }}>3 位旅遊達人分享</p>
+        <p className="text-[10px]" style={{ color: "#999" }}>
+          {isEnrichLoading && !hasRealEnrich ? "整理評論中..." : "3 位旅遊達人分享"}
+        </p>
       </div>
       <div className="flex gap-3 mb-5">
-        {MOCK_REVIEWERS.map(r => (
-          <div key={r.name} className="flex-1 min-w-0 rounded-[14px] overflow-hidden p-4"
+        {(isEnrichLoading && !hasRealEnrich
+          ? Array.from({ length: 2 }).map((_, idx) => ({
+              key: `review-loading-${idx}`,
+              name: "載入中",
+              badgeText: "資料整理中",
+              cardBg: idx % 2 === 0 ? "#fff5e5" : "#e9f3ff",
+              emoji: "⏳",
+              text: "正在抓取 Google 評論...",
+              footer: "請稍候",
+            }))
+          : reviewerCards).map((r) => (
+          <div key={r.key} className="flex-1 min-w-0 rounded-[14px] overflow-hidden p-4"
             style={{ background: r.cardBg, boxShadow: "0px 4px 16px rgba(0,0,0,0.06)" }}>
             <div className="flex items-start gap-2 mb-2">
               <span style={{ fontSize: 20 }}>{r.emoji}</span>
@@ -230,8 +344,13 @@ function SpotDetailPanel({ stop, enrichedPlace, hidden }: {
                 </div>
               </div>
             </div>
-            <p className="text-[10px] leading-[1.5]" style={{ color: "#4d4d4d" }}>{r.text}</p>
-            <p className="text-right text-[10px] mt-2 font-medium" style={{ color: "#ff6b8f" }}>♥ {r.likes}</p>
+            <FoldableText
+              text={r.text}
+              maxChars={72}
+              className="text-[10px] leading-[1.5]"
+              style={{ color: "#4d4d4d" }}
+            />
+            <p className="text-right text-[10px] mt-2 font-medium" style={{ color: "#ff6b8f" }}>{r.footer}</p>
           </div>
         ))}
       </div>
@@ -239,11 +358,22 @@ function SpotDetailPanel({ stop, enrichedPlace, hidden }: {
       {/* Comments */}
       <div className="flex items-center gap-2 mb-3">
         <p className="text-[13px] font-semibold text-[#141414]">💬 旅遊夥伴怎麼說</p>
-        <p className="text-[10px]" style={{ color: "#999" }}>共 284 則留言</p>
+        <p className="text-[10px]" style={{ color: "#999" }}>
+          {isEnrichLoading && !hasRealEnrich ? "同步評論中..." : "共 284 則留言"}
+        </p>
       </div>
       <div className="flex gap-3">
-        {MOCK_COMMENTS.map(c => (
-          <div key={c.name} className="flex-1 min-w-0 bg-white rounded-[12px] p-3"
+        {(isEnrichLoading && !hasRealEnrich
+          ? Array.from({ length: 3 }).map((_, idx) => ({
+              key: `comment-loading-${idx}`,
+              name: "載入中",
+              avatar: "⏳",
+              time: "請稍候",
+              text: "正在抓取評論內容...",
+              verified: false,
+            }))
+          : comments).map(c => (
+          <div key={c.key} className="flex-1 min-w-0 bg-white rounded-[12px] p-3"
             style={{ boxShadow: "0px 4px 16px rgba(0,0,0,0.05)" }}>
             <div className="flex items-center gap-2 mb-2">
               <span style={{ fontSize: 16 }}>{c.avatar}</span>
@@ -260,7 +390,12 @@ function SpotDetailPanel({ stop, enrichedPlace, hidden }: {
                 </div>
               </div>
             </div>
-            <p className="text-[10px] leading-[1.4]" style={{ color: "#4d4d4d" }}>{c.text}</p>
+            <FoldableText
+              text={c.text}
+              maxChars={58}
+              className="text-[10px] leading-[1.4]"
+              style={{ color: "#4d4d4d" }}
+            />
           </div>
         ))}
       </div>
@@ -454,6 +589,8 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
 
   const [trip, setTrip] = useState<Trip | null>(null);
   const [enrichData, setEnrichData] = useState<EnrichResponse | null>(null);
+  const [enrichLoading, setEnrichLoading] = useState(false);
+  const [enrichError, setEnrichError] = useState("");
   const [loading, setLoading] = useState(true);
   const [panel, setPanel] = useState<PanelState>({ type: "spot", stopIdx: 0 });
   const [transportMode, setTransportMode] = useState<MapTravelMode>("TRANSIT");
@@ -494,13 +631,89 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
     router.push("/trips?mode=plan");
   };
 
+  const enrichTrip = async (baseTrip: Trip, options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+    const isDemoTrip = baseTrip.trip_id.startsWith("demo-");
+
+    if (isDemoTrip) {
+      const cached = DEMO_ENRICH_CACHE.get(baseTrip.trip_id);
+      if (cached) {
+        if (!silent) {
+          setEnrichData(cached);
+          setEnrichLoading(false);
+          setEnrichError("");
+        }
+        return cached;
+      }
+    }
+
+    if (!silent) {
+      setEnrichLoading(true);
+      setEnrichError("");
+    }
+
+    try {
+      const plannedRoute = tripToPlannedRoute(baseTrip);
+      const unresolvedNames = plannedRoute.waypoints
+        .filter((waypoint) => !waypoint.place_id || waypoint.place_id.startsWith("demo-place-"))
+        .map((waypoint) => waypoint.name);
+
+      let resolvedPlaceIds = new Map<string, string>();
+      if (unresolvedNames.length > 0) {
+        const geocoded = await agentService.geocode(Array.from(new Set(unresolvedNames)));
+        resolvedPlaceIds = new Map(
+          geocoded
+            .filter((item) => item.found && item.place_id)
+            .map((item) => [item.name, item.place_id])
+        );
+      }
+
+      const enrichedInput = {
+        ...plannedRoute,
+        waypoints: plannedRoute.waypoints.map((waypoint) => ({
+          ...waypoint,
+          place_id: resolvedPlaceIds.get(waypoint.name) ?? waypoint.place_id,
+        })),
+      };
+
+      const enrichPromise = isDemoTrip
+        ? DEMO_ENRICH_INFLIGHT.get(baseTrip.trip_id) ?? agentService.enrich([enrichedInput], 5)
+        : agentService.enrich([enrichedInput], 5);
+
+      if (isDemoTrip && !DEMO_ENRICH_INFLIGHT.has(baseTrip.trip_id)) {
+        DEMO_ENRICH_INFLIGHT.set(baseTrip.trip_id, enrichPromise);
+      }
+
+      const result = await enrichPromise;
+      if (isDemoTrip) {
+        DEMO_ENRICH_CACHE.set(baseTrip.trip_id, result);
+      }
+      if (!silent) {
+        setEnrichData(result);
+      }
+      return result;
+    } catch {
+      if (!silent) {
+        setEnrichData(null);
+        setEnrichError("目前無法載入 Google 照片與評論，暫時顯示預設內容。");
+      }
+      return null;
+    } finally {
+      if (isDemoTrip) {
+        DEMO_ENRICH_INFLIGHT.delete(baseTrip.trip_id);
+      }
+      if (!silent) {
+        setEnrichLoading(false);
+      }
+    }
+  };
+
   useEffect(() => {
     async function load() {
       if (tripId.startsWith("demo-")) {
         const demoTrip = DEMO_ITINERARIES[tripId];
         if (demoTrip) {
           setTrip(demoTrip);
-          setEnrichData(null);
           if (session?.userId) {
             setCurrentTripId(session.userId, demoTrip.trip_id);
           } else if (demoTrip.user_id) {
@@ -508,6 +721,16 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
           }
           setLoading(false);
           setTimeout(() => setPanelVisible(true), 120);
+          void enrichTrip(demoTrip);
+
+          const prefetchTargets = Object.values(DEMO_ITINERARIES)
+            .filter((candidate) => candidate.trip_id !== demoTrip.trip_id)
+            .slice(0, 2);
+          for (const prefetchTrip of prefetchTargets) {
+            if (!DEMO_ENRICH_CACHE.has(prefetchTrip.trip_id) && !DEMO_ENRICH_INFLIGHT.has(prefetchTrip.trip_id)) {
+              void enrichTrip(prefetchTrip, { silent: true });
+            }
+          }
           return;
         }
       }
@@ -522,9 +745,7 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
         }
         setLoading(false);
         setTimeout(() => setPanelVisible(true), 120);
-        agentService.enrich([tripToPlannedRoute(tripData)])
-          .then(e => setEnrichData(e))
-          .catch(() => {});
+        void enrichTrip(tripData);
       } catch {
         setLoading(false);
       }
@@ -723,6 +944,7 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
                   stop={currentStop}
                   enrichedPlace={enrichedPlace}
                   hidden={currentStopIsHidden}
+                  isEnrichLoading={enrichLoading}
                 />
               ) : panel.type === "transport" && orderedStops[panel.stopIdx] && orderedStops[panel.stopIdx + 1] ? (
                 <TransportPanel
@@ -731,6 +953,12 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
                   transportMode={transportMode}
                   onTransportModeChange={setTransportMode}
                 />
+              ) : null}
+              {panel.type === "spot" && enrichLoading ? (
+                <p className="px-5 pb-4 text-[11px]" style={{ color: "#777" }}>正在載入真實照片與評論...</p>
+              ) : null}
+              {panel.type === "spot" && enrichError ? (
+                <p className="px-5 pb-4 text-[11px]" style={{ color: "#999" }}>{enrichError}</p>
               ) : null}
             </div>
           </div>
@@ -833,6 +1061,7 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
                 stop={currentStop}
                 enrichedPlace={enrichedPlace}
                 hidden={currentStopIsHidden}
+                isEnrichLoading={enrichLoading}
               />
             ) : panel.type === "transport" && orderedStops[panel.stopIdx] && orderedStops[panel.stopIdx + 1] ? (
               <TransportPanel
@@ -841,6 +1070,12 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
                 transportMode={transportMode}
                 onTransportModeChange={setTransportMode}
               />
+            ) : null}
+            {panel.type === "spot" && enrichLoading ? (
+              <p className="px-5 pb-4 text-[11px]" style={{ color: "#777" }}>正在載入真實照片與評論...</p>
+            ) : null}
+            {panel.type === "spot" && enrichError ? (
+              <p className="px-5 pb-4 text-[11px]" style={{ color: "#999" }}>{enrichError}</p>
             ) : null}
           </div>
         )}

@@ -128,10 +128,13 @@ export const agentService = {
     });
   },
 
-  enrich(recommendedRoutes: PlannedRoute[]) {
+  enrich(recommendedRoutes: PlannedRoute[], maxPlacesPerRoute = 5) {
     return apiRequest<EnrichResponse>("/api/bff/agent/enrich", {
       method: "POST",
-      body: { recommended_routes: recommendedRoutes },
+      body: {
+        recommended_routes: recommendedRoutes,
+        max_places_per_route: maxPlacesPerRoute,
+      },
     });
   },
 
