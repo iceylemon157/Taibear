@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
+import { I18nProvider } from "@/lib/i18n/provider";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
@@ -18,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-TW" className={`${geistSans.variable} h-full`}>
       <body className="h-full">
-        {children}
+        <I18nProvider>{children}</I18nProvider>
       </body>
     </html>
   );

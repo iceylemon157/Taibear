@@ -5,11 +5,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DEMO_ITINERARIES } from "@/app/data/demo-itineraries";
 import { GoogleMap, ensureGoogleMapsApi, type MapPath } from "@/components/maps/google-map";
 import { buildGoogleMapsDirectionsUrl } from "@/lib/google-maps-url";
+import { useI18n } from "@/lib/i18n/useI18n";
 import { agentService, mapsService, tripsService } from "@/services/api/services";
 import { getSession } from "@/services/auth/session";
 import { getCurrentTripId } from "@/services/trips/currentTrip";
 
-const FILTERS = ["全部", "知名景點", "當前行程"];
+const FILTERS = [
+  { key: "all", labelKey: "explore.filter.all" },
+  { key: "landmark", labelKey: "explore.filter.landmarks" },
+  { key: "trip", labelKey: "explore.filter.currentTrip" },
+];
 
 type ExplorePlace = {
   id: string;
@@ -75,8 +80,9 @@ const LANDMARK_PLACES: ExplorePlace[] = [
 ];
 
 export default function ExplorePage() {
+  const { t } = useI18n();
   const session = useMemo(() => getSession(), []);
-  const [activeFilter, setActiveFilter] = useState("全部");
+  const [activeFilter, setActiveFilter] = useState("all");
   const [tripPlaces, setTripPlaces] = useState<ExplorePlace[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchPredictions, setSearchPredictions] = useState<PlacePrediction[]>([]);
@@ -148,8 +154,8 @@ export default function ExplorePage() {
           return {
             id: `trip-${stop.stop_id}`,
             name: stop.name,
-            address: "當前行程停靠點",
-            info: `${stop.suggested_time || "時間待定"} · 行程第 ${stop.step_order} 站`,
+            address: t("explore.tripStopAddress"),
+            info: `${stop.suggested_time || t("explore.timeTBD")} · ${t("explore.tripStopInfo", { step: stop.step_order })}`,
             emoji: "🧭",
             color: "#6366f1",
             position: { lat, lng },
@@ -172,7 +178,7 @@ export default function ExplorePage() {
     return () => {
       cancelled = true;
     };
-  }, [session?.userId]);
+  }, [session?.userId, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -189,7 +195,7 @@ export default function ExplorePage() {
         sessionTokenRef.current = new maps.places.AutocompleteSessionToken();
       } catch {
         if (!cancelled) {
-          setSearchError("地標搜尋暫時無法使用，請稍後再試。");
+          setSearchError(t("explore.searchUnavailable"));
         }
       }
     }
@@ -221,7 +227,7 @@ export default function ExplorePage() {
     }
 
     if (!autoCompleteServiceRef.current || !mapsRef.current) {
-      setSearchError("地圖搜尋服務載入中...");
+      setSearchError(t("explore.searchLoadingService"));
       return;
     }
 
@@ -251,7 +257,7 @@ export default function ExplorePage() {
           if (status !== maps.places.PlacesServiceStatus.OK || !predictions || predictions.length === 0) {
             setSearchPredictions([]);
             if (status !== maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-              setSearchError("目前無法取得搜尋結果，請稍後再試。");
+              setSearchError(t("explore.searchFailed"));
             }
             return;
           }
@@ -293,7 +299,7 @@ export default function ExplorePage() {
       (place: any, status: string) => {
         setIsSearching(false);
         if (status !== maps.places.PlacesServiceStatus.OK || !place?.geometry?.location) {
-          setSearchError("無法讀取該地標詳情，請換一個試試。");
+          setSearchError(t("explore.detailsFailed"));
           return;
         }
 
@@ -302,8 +308,8 @@ export default function ExplorePage() {
         const selected: ExplorePlace = {
           id: `search-${place.place_id}`,
           name: place.name || prediction.mainText,
-          address: place.formatted_address || prediction.secondaryText || "地標搜尋結果",
-          info: "🔎 搜尋結果",
+          address: place.formatted_address || prediction.secondaryText || t("explore.searchResultAddress"),
+          info: t("explore.searchResultInfo"),
           emoji: "📌",
           color: "#ff6b6b",
           position: { lat, lng },
@@ -339,10 +345,10 @@ export default function ExplorePage() {
     if (hasActiveSearchResult) {
       return searchPlaces;
     }
-    if (activeFilter === "知名景點") {
+    if (activeFilter === "landmark") {
       return allPlaces.filter((place) => place.source === "landmark");
     }
-    if (activeFilter === "當前行程") {
+    if (activeFilter === "trip") {
       return allPlaces.filter((place) => place.source === "trip");
     }
     return allPlaces;
@@ -373,7 +379,7 @@ export default function ExplorePage() {
     let cancelled = false;
 
     async function computeTripRoute() {
-      if (hasActiveSearchResult || activeFilter !== "當前行程" || tripPlaces.length < 2) {
+    if (hasActiveSearchResult || activeFilter !== "trip" || tripPlaces.length < 2) {
         setTripRoutePath(null);
         return;
       }
@@ -426,7 +432,7 @@ export default function ExplorePage() {
   }, [activeFilter, hasActiveSearchResult, tripPlaces]);
 
   const tripMapsUrl = useMemo(() => {
-    if (hasActiveSearchResult || activeFilter !== "當前行程") {
+    if (hasActiveSearchResult || activeFilter !== "trip") {
       return "";
     }
     return buildGoogleMapsDirectionsUrl(
@@ -454,7 +460,7 @@ export default function ExplorePage() {
           className="absolute z-10 right-4 md:right-10 top-[108px] md:top-6 h-[36px] px-4 rounded-[18px] text-[12px] font-semibold text-white inline-flex items-center"
           style={{ background: "#3abdff", boxShadow: "0px 2px 8px rgba(0,0,0,0.18)" }}
         >
-          在 Google Maps 開啟行程 ↗
+          {t("explore.openTripInMaps")}
         </a>
       ) : null}
 
@@ -468,7 +474,7 @@ export default function ExplorePage() {
             <input
               value={searchQuery}
               onChange={(e) => handleSearchInputChange(e.target.value)}
-              placeholder="搜尋地點、景點、餐廳..."
+              placeholder={t("explore.searchPlaceholder")}
               className="flex-1 text-[15px] text-[#222] outline-none bg-transparent"
             />
             {(searchQuery || hasActiveSearchResult) ? (
@@ -476,7 +482,7 @@ export default function ExplorePage() {
                 onClick={clearSearch}
                 className="text-[16px] leading-none"
                 style={{ color: "#999" }}
-                aria-label="清除搜尋"
+                aria-label={t("explore.clearSearch")}
               >
                 ×
               </button>
@@ -487,10 +493,10 @@ export default function ExplorePage() {
               className="absolute top-[58px] left-0 w-[480px] bg-white rounded-[14px] py-2 overflow-hidden"
               style={{ boxShadow: "0px 6px 18px rgba(0,0,0,0.14)" }}
             >
-              {isSearching ? <p className="px-4 py-2 text-[13px] text-[#777]">搜尋中...</p> : null}
+              {isSearching ? <p className="px-4 py-2 text-[13px] text-[#777]">{t("explore.searching")}</p> : null}
               {!isSearching && searchError ? <p className="px-4 py-2 text-[13px] text-[#d9534f]">{searchError}</p> : null}
               {!isSearching && !searchError && searchPredictions.length === 0 && searchQuery.trim().length >= 2 ? (
-                <p className="px-4 py-2 text-[13px] text-[#777]">找不到符合的地標</p>
+                <p className="px-4 py-2 text-[13px] text-[#777]">{t("explore.noSearchResult")}</p>
               ) : null}
               {!isSearching && !searchError
                 ? searchPredictions.map((item) => (
@@ -508,10 +514,10 @@ export default function ExplorePage() {
           ) : null}
         </div>
         {FILTERS.map((f) => (
-          <button key={f} onClick={() => setActiveFilter(f)}
+          <button key={f.key} onClick={() => setActiveFilter(f.key)}
             className="h-[36px] px-4 rounded-[20px] text-[13px] font-semibold whitespace-nowrap transition-colors"
-            style={activeFilter === f ? { background: "#3abdff", color: "white", boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.08)" } : { background: "white", color: "#222", boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.08)" }}>
-            {f}
+            style={activeFilter === f.key ? { background: "#3abdff", color: "white", boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.08)" } : { background: "white", color: "#222", boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.08)" }}>
+            {t(f.labelKey)}
           </button>
         ))}
       </div>
@@ -524,7 +530,7 @@ export default function ExplorePage() {
             <input
               value={searchQuery}
               onChange={(e) => handleSearchInputChange(e.target.value)}
-              placeholder="搜尋地點、景點、餐廳..."
+              placeholder={t("explore.searchPlaceholder")}
               className="flex-1 text-[14px] text-[#222] outline-none bg-transparent"
             />
             {(searchQuery || hasActiveSearchResult) ? (
@@ -532,7 +538,7 @@ export default function ExplorePage() {
                 onClick={clearSearch}
                 className="text-[16px] leading-none"
                 style={{ color: "#999" }}
-                aria-label="清除搜尋"
+                aria-label={t("explore.clearSearch")}
               >
                 ×
               </button>
@@ -543,10 +549,10 @@ export default function ExplorePage() {
               className="absolute top-[54px] left-0 right-0 bg-white rounded-[14px] py-2 overflow-hidden"
               style={{ boxShadow: "0px 6px 18px rgba(0,0,0,0.14)" }}
             >
-              {isSearching ? <p className="px-4 py-2 text-[13px] text-[#777]">搜尋中...</p> : null}
+              {isSearching ? <p className="px-4 py-2 text-[13px] text-[#777]">{t("explore.searching")}</p> : null}
               {!isSearching && searchError ? <p className="px-4 py-2 text-[13px] text-[#d9534f]">{searchError}</p> : null}
               {!isSearching && !searchError && searchPredictions.length === 0 && searchQuery.trim().length >= 2 ? (
-                <p className="px-4 py-2 text-[13px] text-[#777]">找不到符合的地標</p>
+                <p className="px-4 py-2 text-[13px] text-[#777]">{t("explore.noSearchResult")}</p>
               ) : null}
               {!isSearching && !searchError
                 ? searchPredictions.map((item) => (
@@ -565,10 +571,10 @@ export default function ExplorePage() {
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
           {FILTERS.map((f) => (
-            <button key={f} onClick={() => setActiveFilter(f)}
+            <button key={f.key} onClick={() => setActiveFilter(f.key)}
               className="h-[34px] px-4 rounded-[20px] text-[12px] font-semibold whitespace-nowrap flex-shrink-0 transition-colors"
-              style={activeFilter === f ? { background: "#3abdff", color: "white" } : { background: "white", color: "#222", boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.08)" }}>
-              {f}
+              style={activeFilter === f.key ? { background: "#3abdff", color: "white" } : { background: "white", color: "#222", boxShadow: "0px 2px 8px 0px rgba(0,0,0,0.08)" }}>
+              {t(f.labelKey)}
             </button>
           ))}
         </div>
@@ -589,7 +595,7 @@ export default function ExplorePage() {
           </div>
           <p className="text-[13px] text-[#222] mb-4">{selectedPlace.info}</p>
           <button className="w-full h-[40px] rounded-[12px] text-white text-[14px] font-semibold" style={{ background: "linear-gradient(to right, #3abdff, #9cd8ed, #fef3da)" }}>
-            加入行程 →
+            {t("explore.addToTrip")}
           </button>
         </div>
       )}

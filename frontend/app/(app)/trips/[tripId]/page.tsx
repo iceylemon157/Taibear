@@ -9,6 +9,7 @@ import { agentService, mapsService, tripsService } from "@/services/api/services
 import type { EnrichResponse, EnrichedPlace, Trip, TripStop } from "@/services/api/types";
 import { getSession } from "@/services/auth/session";
 import { clearCurrentTripId, getHiddenSpot, setCurrentTripId } from "@/services/trips/currentTrip";
+import { useI18n } from "@/lib/i18n/useI18n";
 
 const CONIC_BG = "conic-gradient(from 90deg at 50% 50%, rgb(254,243,218) -26%, rgb(208,239,255) 13%, rgb(231,241,237) 33%, rgb(251,243,221) 52%, rgb(253,243,219) 67%, rgb(254,243,218) 74%, rgb(208,239,255) 113%)";
 
@@ -94,15 +95,19 @@ function getSegmentHeuristic(fromStop: TripStop, toStop: TripStop): SegmentHeuri
   };
 }
 
-function getTransitLabel(fromStop: TripStop, toStop: TripStop): string {
+function getTransitLabel(
+  fromStop: TripStop,
+  toStop: TripStop,
+  labels: { walking: string; transit: string; driving: string }
+): string {
   const heuristic = getSegmentHeuristic(fromStop, toStop);
   if (heuristic.recommendedMode === "WALKING") {
-    return `🚶 步行 ${heuristic.minutesByMode.WALKING} 分`;
+    return `🚶 ${labels.walking} ${heuristic.minutesByMode.WALKING} min`;
   }
   if (heuristic.recommendedMode === "TRANSIT") {
-    return `🚊 捷運/公車 ${heuristic.minutesByMode.TRANSIT} 分`;
+    return `🚊 ${labels.transit} ${heuristic.minutesByMode.TRANSIT} min`;
   }
-  return `🚗 車行 ${heuristic.minutesByMode.DRIVING} 分`;
+  return `🚗 ${labels.driving} ${heuristic.minutesByMode.DRIVING} min`;
 }
 
 function tripToPlannedRoute(trip: Trip) {
@@ -136,9 +141,9 @@ const MOCK_COMMENTS = [
 ];
 
 const TRANSPORT_OPTIONS: Array<{ mode: MapTravelMode; label: string; icon: string }> = [
-  { mode: "WALKING", label: "步行", icon: "🚶" },
-  { mode: "TRANSIT", label: "捷運/公車", icon: "🚊🚌" },
-  { mode: "DRIVING", label: "計程車/開車", icon: "🚗" },
+  { mode: "WALKING", label: "trips.transport.walking", icon: "🚶" },
+  { mode: "TRANSIT", label: "trips.transport.transit", icon: "🚊🚌" },
+  { mode: "DRIVING", label: "trips.transport.driving", icon: "🚗" },
 ];
 
 const DEMO_ENRICH_CACHE = new Map<string, EnrichResponse>();
@@ -416,6 +421,7 @@ function TransportPanel({
   transportMode: MapTravelMode;
   onTransportModeChange: (mode: MapTravelMode) => void;
 }) {
+  const { t } = useI18n();
   const heuristic = getSegmentHeuristic(fromStop, toStop);
   const [routePath, setRoutePath] = useState<MapPath | null>(null);
   const [routeError, setRouteError] = useState("");
@@ -523,7 +529,7 @@ function TransportPanel({
       ) : null}
 
       {/* Transport options */}
-      <p className="text-[13px] font-semibold text-[#141414] mb-3">選擇交通方式</p>
+      <p className="text-[13px] font-semibold text-[#141414] mb-3">{t("trips.transport.choose")}</p>
       <p className="text-[11px] mb-3" style={{ color: "#777" }}>
         兩地直線距離約 {heuristic.distanceKm.toFixed(1)} 公里，已用簡易 heuristic 推薦路線。
       </p>
@@ -545,13 +551,13 @@ function TransportPanel({
             >
             <div className="px-6 pt-5 pb-4">
               <div className="flex items-center gap-2 mb-3">
-                <p className="text-[13px] font-semibold text-[#141414]">{opt.label}</p>
-                {recommended ? (
+                  <p className="text-[13px] font-semibold text-[#141414]">{t(opt.label)}</p>
+                  {recommended ? (
                   <span
                     className="px-2 h-[20px] rounded-[10px] text-[10px] font-semibold flex items-center"
                     style={{ background: "#e0f4ff", color: "#3abdff" }}
                   >
-                    推薦
+                    {t("trips.transport.recommended")}
                   </span>
                 ) : null}
               </div>
@@ -572,7 +578,7 @@ function TransportPanel({
             className="h-[40px] rounded-[12px] text-white text-[13px] font-semibold inline-flex items-center justify-center"
             style={{ width: 350, maxWidth: "100%", background: "#3abdff", boxShadow: "0px 4px 16px rgba(0,0,0,0.05)" }}
           >
-            在 Google Maps 開啟這段路線 ↗
+            {t("trips.transport.openInMaps")}
           </a>
         </div>
       ) : null}
@@ -583,6 +589,7 @@ function TransportPanel({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function TripResultPage({ params }: { params: Promise<{ tripId: string }> }) {
+  const { t } = useI18n();
   const { tripId } = use(params);
   const router = useRouter();
   const session = useMemo(() => getSession(), []);
@@ -759,7 +766,7 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
       <div className="flex items-center justify-center min-h-screen" style={{ background: CONIC_BG }}>
         <div className="text-center">
           <p style={{ fontSize: 56, animation: "bearBounce 0.9s ease infinite" }}>🐻</p>
-          <p className="text-[16px] font-semibold text-[#141414] mt-4">載入行程中...</p>
+          <p className="text-[16px] font-semibold text-[#141414] mt-4">{t("trips.loading")}</p>
         </div>
       </div>
     );
@@ -770,11 +777,11 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
       <div className="flex items-center justify-center min-h-screen" style={{ background: CONIC_BG }}>
         <div className="text-center">
           <p style={{ fontSize: 48 }}>😕</p>
-          <p className="text-[16px] font-semibold text-[#141414] mt-4">找不到這個行程</p>
+          <p className="text-[16px] font-semibold text-[#141414] mt-4">{t("trips.notFound")}</p>
           <button onClick={() => router.push("/trips")}
             className="mt-4 px-6 h-[42px] rounded-[12px] text-white text-[14px] font-semibold"
             style={{ background: "#3abdff" }}>
-            返回行程列表
+            {t("trips.backToList")}
           </button>
         </div>
       </div>
@@ -822,7 +829,7 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
             className="ml-auto h-[34px] px-4 rounded-[10px] text-white text-[12px] font-semibold"
             style={{ background: "#3abdff" }}
           >
-            重新規劃
+            {t("trips.replan")}
           </button>
         </div>
 
@@ -916,7 +923,13 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
                             }}
                             onClick={() => handleTransitClick(i)}
                           >
-                            {orderedStops[i + 1] ? getTransitLabel(stop, orderedStops[i + 1]) : "🚶 交通資訊"}
+                            {orderedStops[i + 1]
+                              ? getTransitLabel(stop, orderedStops[i + 1], {
+                                  walking: t("trips.transport.walking"),
+                                  transit: t("trips.transport.transit"),
+                                  driving: t("trips.transport.driving"),
+                                })
+                              : `🚶 ${t("trips.transportInfo")}`}
                           </button>
                         </div>
                       )}
@@ -979,7 +992,7 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
             className="h-[30px] px-3 rounded-[10px] text-white text-[11px] font-semibold"
             style={{ background: "#3abdff" }}
           >
-            重新規劃
+            {t("trips.replan")}
           </button>
         </div>
 
@@ -1044,7 +1057,13 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
                           <button className="h-[26px] px-3 rounded-[13px] text-[11px]"
                             style={{ background: "#f2f2f2", color: "#999" }}
                             onClick={() => handleTransitClick(i)}>
-                            {orderedStops[i + 1] ? getTransitLabel(stop, orderedStops[i + 1]) : "🚶 交通資訊"}
+                            {orderedStops[i + 1]
+                              ? getTransitLabel(stop, orderedStops[i + 1], {
+                                  walking: t("trips.transport.walking"),
+                                  transit: t("trips.transport.transit"),
+                                  driving: t("trips.transport.driving"),
+                                })
+                              : `🚶 ${t("trips.transportInfo")}`}
                           </button>
                         </div>
                       )}

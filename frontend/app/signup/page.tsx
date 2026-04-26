@@ -8,11 +8,13 @@ import { useState } from "react";
 import { ApiError } from "@/services/api/client";
 import { authService } from "@/services/api/services";
 import { setSession } from "@/services/auth/session";
+import { useI18n } from "@/lib/i18n/useI18n";
 
 const CONIC_BG =
   "conic-gradient(from 90deg at 50% 50%, rgb(254,243,218) -26%, rgb(208,239,255) 13%, rgb(231,241,237) 33%, rgb(251,243,221) 52%, rgb(253,243,219) 67%, rgb(254,243,218) 74%, rgb(208,239,255) 113%)";
 
 export default function SignUpPage() {
+  const { t } = useI18n();
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -32,19 +34,19 @@ export default function SignUpPage() {
     const displayName = `${form.firstName.trim()} ${form.lastName.trim()}`.trim() || userId;
 
     if (!userId) {
-      setErrorMessage("請輸入 Email。");
+      setErrorMessage(t("auth.signup.emailRequired"));
       return;
     }
     if (form.password.length < 6) {
-      setErrorMessage("密碼至少需要 6 個字元。");
+      setErrorMessage(t("auth.signup.passwordShort"));
       return;
     }
     if (form.password !== form.confirm) {
-      setErrorMessage("兩次輸入的密碼不一致。");
+      setErrorMessage(t("auth.signup.passwordMismatch"));
       return;
     }
     if (!agreed) {
-      setErrorMessage("請先同意服務條款與隱私政策。");
+      setErrorMessage(t("auth.signup.agreeRequired"));
       return;
     }
 
@@ -68,12 +70,12 @@ export default function SignUpPage() {
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.status === 400 && /already exists/i.test(error.message)) {
-          setErrorMessage("此帳號已存在，請直接登入。");
+          setErrorMessage(t("auth.signup.exists"));
         } else {
-          setErrorMessage(error.message || "註冊失敗，請稍後再試。");
+          setErrorMessage(error.message || t("auth.signup.failed"));
         }
       } else {
-        setErrorMessage("註冊失敗，請稍後再試。");
+        setErrorMessage(t("auth.signup.failed"));
       }
     } finally {
       setSubmitting(false);
@@ -101,27 +103,27 @@ export default function SignUpPage() {
         </div>
 
         {/* Title */}
-        <h1 className="text-[24px] md:text-[30px] font-bold text-[#141414] mb-1">Create your account</h1>
-        <p className="text-[14px] mb-6" style={{ color: "#999" }}>免費加入，立刻探索台北旅遊新體驗</p>
+        <h1 className="text-[24px] md:text-[30px] font-bold text-[#141414] mb-1">{t("auth.signup.title")}</h1>
+        <p className="text-[14px] mb-6" style={{ color: "#999" }}>{t("auth.signup.subtitle")}</p>
 
         <form onSubmit={handleSubmit} className="flex flex-col">
           {/* First + Last name — stack on mobile */}
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4">
             <div className="flex-1">
-              <label className="text-[13px] font-medium block mb-2" style={{ color: "#999" }}>First name</label>
+              <label className="text-[13px] font-medium block mb-2" style={{ color: "#999" }}>{t("auth.signup.firstName")}</label>
               <input
                 type="text"
-                placeholder="First name"
+                placeholder={t("auth.signup.firstNamePlaceholder")}
                 value={form.firstName}
                 onChange={set("firstName")}
                 className="w-full h-[52px] bg-white rounded-[14px] px-4 text-[15px] text-[#141414] outline-none border-none"
               />
             </div>
             <div className="flex-1">
-              <label className="text-[13px] font-medium block mb-2" style={{ color: "#999" }}>Last name</label>
+              <label className="text-[13px] font-medium block mb-2" style={{ color: "#999" }}>{t("auth.signup.lastName")}</label>
               <input
                 type="text"
-                placeholder="Last name"
+                placeholder={t("auth.signup.lastNamePlaceholder")}
                 value={form.lastName}
                 onChange={set("lastName")}
                 className="w-full h-[52px] bg-white rounded-[14px] px-4 text-[15px] text-[#141414] outline-none border-none"
@@ -130,21 +132,21 @@ export default function SignUpPage() {
           </div>
 
           {/* Email */}
-          <label className="text-[13px] font-medium block mb-2" style={{ color: "#999" }}>Email</label>
+          <label className="text-[13px] font-medium block mb-2" style={{ color: "#999" }}>{t("auth.signup.email")}</label>
           <input
             type="email"
-            placeholder="Email address"
+            placeholder={t("auth.signup.emailPlaceholder")}
             value={form.email}
             onChange={set("email")}
             className="w-full h-[52px] bg-white rounded-[14px] px-4 text-[15px] text-[#141414] outline-none border-none mb-4"
           />
 
           {/* Password */}
-          <label className="text-[13px] font-medium block mb-2" style={{ color: "#999" }}>Password</label>
+          <label className="text-[13px] font-medium block mb-2" style={{ color: "#999" }}>{t("auth.signup.password")}</label>
           <div className="relative mb-4">
             <input
               type={showPassword ? "text" : "password"}
-              placeholder="Create password"
+              placeholder={t("auth.signup.passwordPlaceholder")}
               value={form.password}
               onChange={set("password")}
               className="w-full h-[52px] bg-white rounded-[14px] px-4 pr-12 text-[15px] text-[#141414] outline-none border-none"
@@ -156,11 +158,11 @@ export default function SignUpPage() {
           </div>
 
           {/* Confirm password */}
-          <label className="text-[13px] font-medium block mb-2" style={{ color: "#999" }}>Confirm password</label>
+          <label className="text-[13px] font-medium block mb-2" style={{ color: "#999" }}>{t("auth.signup.confirmPassword")}</label>
           <div className="relative mb-4">
             <input
               type={showConfirm ? "text" : "password"}
-              placeholder="Confirm your password"
+              placeholder={t("auth.signup.confirmPasswordPlaceholder")}
               value={form.confirm}
               onChange={set("confirm")}
               className="w-full h-[52px] bg-white rounded-[14px] px-4 pr-12 text-[15px] text-[#141414] outline-none border-none"
@@ -186,10 +188,10 @@ export default function SignUpPage() {
               )}
             </button>
             <span className="text-[13px]" style={{ color: "#999" }}>
-              我同意{" "}
-              <span className="font-semibold" style={{ color: "#3abdff" }}>服務條款</span>
-              {" "}與{" "}
-              <span className="font-semibold" style={{ color: "#3abdff" }}>隱私政策</span>
+              {t("auth.signup.agreePrefix")}{" "}
+              <span className="font-semibold" style={{ color: "#3abdff" }}>{t("auth.signup.terms")}</span>
+              {" "}{t("auth.signup.and")}{" "}
+              <span className="font-semibold" style={{ color: "#3abdff" }}>{t("auth.signup.privacy")}</span>
             </span>
           </label>
 
@@ -200,7 +202,7 @@ export default function SignUpPage() {
             className="w-full h-[52px] md:h-[56px] rounded-[16px] text-white text-[16px] font-bold mb-3 transition-opacity disabled:cursor-not-allowed disabled:opacity-70 hover:opacity-90"
             style={{ background: "#3abdff" }}
           >
-            {submitting ? "Creating account..." : "Create Account"}
+            {submitting ? t("auth.signup.submitting") : t("auth.signup.submit")}
           </button>
 
           {errorMessage ? (
@@ -222,13 +224,13 @@ export default function SignUpPage() {
             className="w-full h-[52px] md:h-[56px] rounded-[16px] bg-[#141414] text-white text-[15px] font-semibold flex items-center justify-center gap-3 mb-6 transition-opacity hover:opacity-90"
           >
             <GoogleIcon />
-            Sign up with Google
+            {t("auth.signup.google")}
           </button>
 
           <p className="text-center text-[14px]" style={{ color: "#999" }}>
-            Already have an account?{" "}
+            {t("auth.signup.haveAccount")}{" "}
             <Link href="/login" className="font-semibold" style={{ color: "#3abdff" }}>
-              Sign in
+              {t("auth.signup.signin")}
             </Link>
           </p>
         </form>
@@ -240,6 +242,7 @@ export default function SignUpPage() {
 }
 
 function AuthToggle({ active }: { active: "login" | "signup" }) {
+  const { t } = useI18n();
   const activeStyle = {
     background: "rgba(255,210,106,0.82)",
     boxShadow: "inset 0px 4px 4px rgba(0,0,0,0.12)",
@@ -252,11 +255,11 @@ function AuthToggle({ active }: { active: "login" | "signup" }) {
     >
       <Link href="/login" className="h-full px-6 rounded-[20px] flex items-center text-[15px] font-semibold"
         style={active === "login" ? activeStyle : { color: "#ffd26a" }}>
-        Log in
+        {t("landing.login")}
       </Link>
       <Link href="/signup" className="h-full px-6 rounded-[20px] flex items-center text-[15px] font-semibold"
         style={active === "signup" ? activeStyle : { color: "#ffd26a" }}>
-        Sign up
+        {t("landing.signup")}
       </Link>
     </div>
   );

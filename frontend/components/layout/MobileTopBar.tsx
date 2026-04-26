@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 
 export function MobileTopBar() {
   return (
@@ -10,6 +11,9 @@ export function MobileTopBar() {
         <Image src="/taibear-icon-trimmed.png" alt="Taibear" width={64} height={64} className="object-cover" />
       </div>
       <span className="ml-3 text-[24px] font-bold leading-none" style={{ color: "#3abdff" }}>Taibear</span>
+      <div className="ml-auto">
+        <LanguageSwitcher compact />
+      </div>
     </header>
   );
 }
