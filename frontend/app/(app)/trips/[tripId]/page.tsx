@@ -2,6 +2,7 @@
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { DEMO_ITINERARIES } from "@/app/data/demo-itineraries";
 import { agentService, tripsService } from "@/services/api/services";
 import type { EnrichResponse, EnrichedPlace, Trip, TripStop } from "@/services/api/types";
 import { getSession } from "@/services/auth/session";
@@ -304,6 +305,22 @@ export default function TripResultPage({ params }: { params: Promise<{ tripId: s
 
   useEffect(() => {
     async function load() {
+      if (tripId.startsWith("demo-")) {
+        const demoTrip = DEMO_ITINERARIES[tripId];
+        if (demoTrip) {
+          setTrip(demoTrip);
+          setEnrichData(null);
+          if (session?.userId) {
+            setCurrentTripId(session.userId, demoTrip.trip_id);
+          } else if (demoTrip.user_id) {
+            setCurrentTripId(demoTrip.user_id, demoTrip.trip_id);
+          }
+          setLoading(false);
+          setTimeout(() => setPanelVisible(true), 120);
+          return;
+        }
+      }
+
       try {
         const tripData = await tripsService.getTrip(tripId);
         setTrip(tripData);
