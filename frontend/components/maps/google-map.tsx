@@ -19,12 +19,15 @@ type MapSegment = {
   color?: string;
 };
 
+export type { MapSegment };
+
 type GoogleMapProps = {
   className?: string;
   center: { lat: number; lng: number };
   zoom?: number;
   markers?: MapMarker[];
   segment?: MapSegment | null;
+  segments?: MapSegment[];
   onMarkerClick?: (markerId: string) => void;
 };
 
@@ -120,13 +123,14 @@ export function GoogleMap({
   zoom = 13,
   markers = [],
   segment = null,
+  segments = [],
   onMarkerClick,
 }: GoogleMapProps) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
   const markerInstancesRef = useRef<any[]>([]);
-  const polylineRef = useRef<any>(null);
-  const directionsRendererRef = useRef<any>(null);
+  const polylineRefs = useRef<any[]>([]);
+  const directionsRendererRefs = useRef<any[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
 
   const markerPoints = useMemo(() => markers.map((marker) => marker.position), [markers]);
@@ -197,15 +201,15 @@ export function GoogleMap({
     }
     markerInstancesRef.current = [];
 
-    if (polylineRef.current) {
-      polylineRef.current.setMap(null);
-      polylineRef.current = null;
+    for (const polyline of polylineRefs.current) {
+      polyline.setMap(null);
     }
+    polylineRefs.current = [];
 
-    if (directionsRendererRef.current) {
-      directionsRendererRef.current.setMap(null);
-      directionsRendererRef.current = null;
+    for (const renderer of directionsRendererRefs.current) {
+      renderer.setMap(null);
     }
+    directionsRendererRefs.current = [];
 
     for (const marker of markers) {
       const markerInstance = new maps.Marker({
@@ -232,41 +236,49 @@ export function GoogleMap({
 
     const pointsToFit = [...markerPoints];
 
-    if (segment) {
-      pointsToFit.push(segment.from, segment.to);
-      const directionsService = new maps.DirectionsService();
-      const directionsRenderer = new maps.DirectionsRenderer({
-        map,
-        suppressMarkers: true,
-        polylineOptions: {
-          strokeColor: segment.color || "#3abdff",
-          strokeOpacity: 0.9,
-          strokeWeight: 5,
-        },
-      });
-      directionsRendererRef.current = directionsRenderer;
+    const segmentList = segments.length > 0 ? segments : segment ? [segment] : [];
 
-      directionsService
-        .route({
-          origin: segment.from,
-          destination: segment.to,
-          travelMode: maps.TravelMode[segment.travelMode],
-        })
-        .then((result: any) => {
-          directionsRenderer.setDirections(result);
-        })
-        .catch(() => {
-          directionsRenderer.setMap(null);
-          directionsRendererRef.current = null;
-          polylineRef.current = new maps.Polyline({
-            path: [segment.from, segment.to],
-            geodesic: true,
-            strokeColor: segment.color || "#3abdff",
+    if (segmentList.length > 0) {
+      const directionsService = new maps.DirectionsService();
+
+      for (const currentSegment of segmentList) {
+        pointsToFit.push(currentSegment.from, currentSegment.to);
+
+        const directionsRenderer = new maps.DirectionsRenderer({
+          map,
+          suppressMarkers: true,
+          preserveViewport: true,
+          polylineOptions: {
+            strokeColor: currentSegment.color || "#3abdff",
             strokeOpacity: 0.9,
-            strokeWeight: 4,
-            map,
-          });
+            strokeWeight: 5,
+          },
         });
+        directionsRendererRefs.current.push(directionsRenderer);
+
+        directionsService
+          .route({
+            origin: currentSegment.from,
+            destination: currentSegment.to,
+            travelMode: maps.TravelMode[currentSegment.travelMode],
+          })
+          .then((result: any) => {
+            directionsRenderer.setDirections(result);
+          })
+          .catch(() => {
+            directionsRenderer.setMap(null);
+            directionsRendererRefs.current = directionsRendererRefs.current.filter((r) => r !== directionsRenderer);
+            const fallbackPolyline = new maps.Polyline({
+              path: [currentSegment.from, currentSegment.to],
+              geodesic: true,
+              strokeColor: currentSegment.color || "#3abdff",
+              strokeOpacity: 0.9,
+              strokeWeight: 4,
+              map,
+            });
+            polylineRefs.current.push(fallbackPolyline);
+          });
+      }
     }
 
     if (pointsToFit.length >= 2) {
@@ -276,7 +288,7 @@ export function GoogleMap({
       map.setCenter(center);
       map.setZoom(zoom);
     }
-  }, [center, markerPoints, markers, onMarkerClick, segment, zoom]);
+  }, [center, markerPoints, markers, onMarkerClick, segment, segments, zoom]);
 
   if (errorMessage) {
     return (
