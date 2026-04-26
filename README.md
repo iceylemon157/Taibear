@@ -38,6 +38,13 @@
 - **平台房源推薦** — 輸入地點和偏好與交通需求，AI 從合法旅宿中給予推薦，附 Google Maps 連結
 - **一鍵上手探索** — 選定合法住宿後直接加入 Taibear，以此位置為起點規劃行程
 
+<table>
+  <tr>
+    <td align="center"><img src="screenshots/safe-stay-input.png" alt="Safe Stay 輸入偏好" width="100%" /><br/><sub>輸入地點與偏好</sub></td>
+    <td align="center"><img src="screenshots/safe-stay-results.png" alt="Safe Stay 合法住宿推薦" width="100%" /><br/><sub>合法住宿推薦結果</sub></td>
+  </tr>
+</table>
+
 ---
 
 ## 🗺️ 模組二｜個人化在地探索（Play Taipei）
