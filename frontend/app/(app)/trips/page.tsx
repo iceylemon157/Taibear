@@ -253,6 +253,9 @@ export default function TripsPage() {
   const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [startDate, setStartDate] = useState(todayIso);
+  const [endDate, setEndDate] = useState(todayIso);
   const [prompt, setPrompt] = useState("");
   const [tags, setTags] = useState(STYLE_TAGS);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -428,7 +431,7 @@ export default function TripsPage() {
         throw new Error(t("trips.error.noRoute"));
       }
 
-      const tripDate = new Date().toISOString().slice(0, 10);
+      const tripDate = startDate;
       const trip = await tripsService.createTrip({
         user_id: session.userId,
         trip_date: tripDate,
@@ -544,7 +547,23 @@ export default function TripsPage() {
             <p className="text-[36px] font-bold leading-tight" style={{ color: "#ffd26a" }}>{t("trips.heroLine2")}</p>
           </div>
 
-          <DatePicker />
+          <DatePicker
+            startDate={startDate}
+            endDate={endDate}
+            onStartDateChange={(value) => {
+              setStartDate(value);
+              if (value > endDate) {
+                setEndDate(value);
+              }
+            }}
+            onEndDateChange={(value) => {
+              if (value < startDate) {
+                setEndDate(startDate);
+                return;
+              }
+              setEndDate(value);
+            }}
+          />
 
           <div>
             <p className="text-[14px] font-semibold mb-3" style={{ color: "#999" }}>{t("trips.styleLabel")}</p>
@@ -611,7 +630,23 @@ export default function TripsPage() {
           <p className="text-[36px] font-bold leading-tight" style={{ color: "#ffd26a" }}>{t("trips.heroLine2")}</p>
         </div>
 
-        <DatePicker />
+        <DatePicker
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={(value) => {
+            setStartDate(value);
+            if (value > endDate) {
+              setEndDate(value);
+            }
+          }}
+          onEndDateChange={(value) => {
+            if (value < startDate) {
+              setEndDate(startDate);
+              return;
+            }
+            setEndDate(value);
+          }}
+        />
 
         <div>
           <p className="text-[14px] font-semibold mb-3" style={{ color: "#999" }}>{t("trips.styleLabel")}</p>
@@ -669,28 +704,89 @@ export default function TripsPage() {
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
-function DatePicker() {
-  const { t } = useI18n();
+function DatePicker({
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
+}: {
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (value: string) => void;
+  onEndDateChange: (value: string) => void;
+}) {
+  const { t, locale } = useI18n();
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const safeStart = Number.isNaN(start.getTime()) ? new Date() : start;
+  const safeEnd = Number.isNaN(end.getTime()) ? safeStart : end;
+  const diffMs = Math.max(0, safeEnd.getTime() - safeStart.getTime());
+  const nights = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const days = nights + 1;
+
+  const formattedStart = safeStart.toLocaleDateString(locale === "ja" ? "ja-JP" : locale === "en" ? "en-US" : "zh-TW");
+  const formattedEnd = safeEnd.toLocaleDateString(locale === "ja" ? "ja-JP" : locale === "en" ? "en-US" : "zh-TW");
+
+  const durationLabel =
+    locale === "en"
+      ? `${days} day${days > 1 ? "s" : ""} ${nights} night${nights > 1 ? "s" : ""}`
+      : locale === "ja"
+        ? `${days}日 ${nights}泊`
+        : `${days} 天 ${nights} 夜`;
+
+  const dateInputClass = "absolute inset-0 w-full h-full opacity-0 cursor-pointer";
 
   return (
-    <div
-      className="flex items-center h-[64px] rounded-[16px] border-[1.5px] bg-white px-4 gap-3"
-      style={{ borderColor: "#e0e0e0" }}
-    >
-      <span className="text-[18px]">📅</span>
-      <div className="flex flex-col">
-        <span className="text-[11px]" style={{ color: "#999" }}>{t("trips.date.start")}</span>
-        <span className="text-[15px] font-semibold text-black">2025/05/01</span>
+    <div className="w-full">
+      <div
+        className="flex items-center h-[76px] rounded-[18px] border-[1.5px] bg-white px-3 gap-2"
+        style={{ borderColor: "#d9e9f2", boxShadow: "0px 4px 14px rgba(0,0,0,0.05)" }}
+      >
+        <span className="text-[19px] pl-1">📅</span>
+
+        <div className="relative flex-1 h-[56px] rounded-[14px] px-3 flex flex-col justify-center" style={{ background: "#f7fbfd" }}>
+          <span className="text-[11px]" style={{ color: "#88a0ad" }}>{t("trips.date.start")}</span>
+          <span className="text-[15px] font-semibold text-black leading-tight">{formattedStart}</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => onStartDateChange(e.target.value)}
+            className={dateInputClass}
+            aria-label={t("trips.date.start")}
+          />
+        </div>
+
+        <span className="text-[18px] font-semibold" style={{ color: "#88a0ad" }}>⭢</span>
+
+        <div className="relative flex-1 h-[56px] rounded-[14px] px-3 flex flex-col justify-center" style={{ background: "#f7fbfd" }}>
+          <span className="text-[11px]" style={{ color: "#88a0ad" }}>{t("trips.date.end")}</span>
+          <span className="text-[15px] font-semibold text-black leading-tight">{formattedEnd}</span>
+          <input
+            type="date"
+            value={endDate}
+            min={startDate}
+            onChange={(e) => onEndDateChange(e.target.value)}
+            className={dateInputClass}
+            aria-label={t("trips.date.end")}
+          />
+        </div>
+
+        <div className="hidden sm:block w-px h-[44px] mx-1" style={{ background: "#dbe8ee" }} />
+        <div className="hidden sm:flex flex-col min-w-[92px]">
+          <span className="text-[11px]" style={{ color: "#88a0ad" }}>{t("trips.date.duration")}</span>
+          <span className="text-[15px] font-semibold" style={{ color: "#3abdff" }}>{durationLabel}</span>
+        </div>
       </div>
-      <span className="text-[20px] font-semibold text-black">⭢</span>
-      <div className="flex flex-col">
-        <span className="text-[11px]" style={{ color: "#999" }}>{t("trips.date.end")}</span>
-        <span className="text-[15px] font-semibold text-black">2025/05/01</span>
-      </div>
-      <div className="hidden sm:block w-px h-[40px] mx-1" style={{ background: "#e0e0e0" }} />
-      <div className="hidden sm:flex flex-col">
-        <span className="text-[11px]" style={{ color: "#999" }}>{t("trips.date.duration")}</span>
-        <span className="text-[15px] font-semibold" style={{ color: "#3abdff" }}>{t("trips.date.durationValue")}</span>
+
+      <div className="sm:hidden flex justify-end mt-2">
+        <div
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[12px]"
+          style={{ borderColor: "#d9e9f2", background: "#f7fbfd" }}
+        >
+          <span style={{ color: "#88a0ad" }}>{t("trips.date.duration")}</span>
+          <span className="font-semibold" style={{ color: "#3abdff" }}>{durationLabel}</span>
+        </div>
       </div>
     </div>
   );
