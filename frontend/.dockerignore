@@ -1,0 +1,12 @@
+__pycache__
+.git
+.gitignore
+.env
+.env.*
+.env.local
+.next
+.cache
+*.log
+.DS_Store
+Thumbs.db
+node_modules

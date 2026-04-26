@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+dist/
+.DS_Store
+
+# Enrichment output — keep directory structure, ignore generated files
+data/routes/*/
+!data/routes/.gitkeep
+
+# Runtime / generated files
+routes_map.html
+last_result.json
+test.json
+agent/.adk/
+
+# Separate sub-projects
+reels-tg-bot/
+.worktrees/

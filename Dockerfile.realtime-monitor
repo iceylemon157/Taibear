@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir \
+    fastapi \
+    "uvicorn[standard]" \
+    pydantic \
+    python-dotenv \
+    requests
+
+# Copy the realtime_monitor library and the service package
+COPY realtime_monitor/ ./realtime_monitor/
+COPY realtime_monitor_service/ ./realtime_monitor_service/
+
+# Copy CWA auth key if present (optional — key can also come from env)
+COPY weather_auth_code* ./
+
+EXPOSE 8005
+
+CMD ["uvicorn", "realtime_monitor_service.main:app", "--host", "0.0.0.0", "--port", "8005"]

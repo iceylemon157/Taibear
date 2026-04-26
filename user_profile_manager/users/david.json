@@ -1,0 +1,22 @@
+{
+  "user_id": "david@example.com",
+  "display_name": "David",
+  "country": "Japan",
+  "preferred_languages": ["ja", "en", "zh-TW"],
+  "age": 29,
+  "preferred_transportation": ["捷運", "步行", "計程車"],
+  "selected_tags": [
+    "工業風",
+    "預算高",
+    "茶館",
+    "獨立書店",
+    "調酒"
+  ],
+  "reels": [
+    {
+      "url": "https://www.instagram.com/reel/DBwAPOgBZs0/?igsh=MXFwMm8yeXp6Y2x6Ng==",
+      "text_content": "明明是網美店餐點卻很好吃！",
+      "auto_tags": []
+    }
+  ]
+}

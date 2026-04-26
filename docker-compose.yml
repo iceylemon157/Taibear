@@ -1,0 +1,158 @@
+# YTP Hackathon — Unified Docker Compose
+#
+# Starts all microservices on a shared network so they can reach each other
+# by container name.  Copy .env.example → .env and fill in your keys first.
+#
+# Usage:
+#   docker compose up --build          # start everything
+#   docker compose up --build -d       # detached
+#   docker compose logs -f trip-planner  # tail one service
+#   docker compose logs -f frontend      # tail frontend logs
+
+services:
+    # ── Shared Postgres (used by Trip Planning Agent + TG Bot) ──────────────────
+    db:
+        image: postgres:16
+        environment:
+            POSTGRES_DB: ${POSTGRES_DB:-ytp}
+            POSTGRES_USER: ${POSTGRES_USER:-ytp}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        networks:
+            - ytp
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ytp}"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+    # ── Trip Planning Agent (fills the "Trip Planner" role — port 8001) ─────────
+    trip-planner:
+        build:
+            context: ./agent
+            dockerfile: Dockerfile.agent
+        environment:
+            DATABASE_URL: postgresql://${POSTGRES_USER:-ytp}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ytp}
+            GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+            GOOGLE_API_KEY_2: ${GOOGLE_API_KEY_2:-}
+            GOOGLE_API_KEY_3: ${GOOGLE_API_KEY_3:-}
+            GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+            YTP_API_KEY: ${YTP_API_KEY}
+            USER_PROFILE_API_URL: http://user-profile-manager:8004
+        ports:
+            - "8001:8000"
+        networks:
+            - ytp
+        depends_on:
+            db:
+                condition: service_healthy
+        restart: unless-stopped
+
+    # ── Telegram Bot (Trip Planning Agent companion) ────────────────────────────
+    # tg-bot:
+    #   build:
+    #     context: ./agent
+    #     dockerfile: Dockerfile.tgbot
+    #   environment:
+    #     DATABASE_URL: postgresql://${POSTGRES_USER:-ytp}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ytp}
+    #     TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+    #     APIFY_TOKEN: ${APIFY_TOKEN:-}
+    #     GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    #     YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+    #   networks:
+    #     - ytp
+    #   depends_on:
+    #     db:
+    #       condition: service_healthy
+    #   restart: unless-stopped
+
+    # ── Trip Manager + Realtime Monitor (port 8003) ─────────────────────────────
+    trip-manager:
+        build:
+            context: .
+            dockerfile: Dockerfile.trip-manager
+        environment:
+            CWA_API_KEY: ${CWA_API_KEY:-}
+            TDX_CLIENT_ID: ${TDX_CLIENT_ID:-}
+            TDX_CLIENT_SECRET: ${TDX_CLIENT_SECRET:-}
+            # Point to Trip Planning Agent for replanning
+            TRIP_PLANNER_URL: http://trip-planner:8000
+            TRIP_PLANNER_API_KEY: ${YTP_API_KEY:-}
+            TASK_MANAGER_URL: ${TASK_MANAGER_URL:-http://localhost:8002}
+        ports:
+            - "8003:8003"
+        volumes:
+            - trip_data:/app/trip_manager/trips
+        networks:
+            - ytp
+        depends_on:
+            - trip-planner
+        restart: unless-stopped
+
+    # ── User Profile Manager (port 8004) ────────────────────────────────────────
+    user-profile-manager:
+        build:
+            context: .
+            dockerfile: Dockerfile.user-profile-manager
+        environment:
+            PROFILE_REPO_BACKEND: db
+            PROFILE_DB_URL: postgresql://${POSTGRES_USER:-ytp}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ytp}
+        ports:
+            - "8004:8004"
+        networks:
+            - ytp
+        depends_on:
+            db:
+                condition: service_healthy
+        restart: unless-stopped
+
+    # ── Realtime Monitor service (port 8005) ────────────────────────────────────
+    realtime-monitor:
+        build:
+            context: .
+            dockerfile: Dockerfile.realtime-monitor
+        environment:
+            CWA_API_KEY: ${CWA_API_KEY:-}
+            TDX_CLIENT_ID: ${TDX_CLIENT_ID:-}
+            TDX_CLIENT_SECRET: ${TDX_CLIENT_SECRET:-}
+            CACHE_TTL_SECS: ${CACHE_TTL_SECS:-60}
+            NEARBY_RADIUS_M: ${NEARBY_RADIUS_M:-500}
+        ports:
+            - "8005:8005"
+        networks:
+            - ytp
+        restart: unless-stopped
+
+    # ── Frontend (Next.js app, port 3000) ───────────────────────────────────────
+    frontend:
+        build:
+            context: ./frontend
+            dockerfile: Dockerfile
+        environment:
+            NEXT_TELEMETRY_DISABLED: "1"
+            BACKEND_AGENT_URL: http://trip-planner:8000
+            BACKEND_TRIP_MANAGER_URL: http://trip-manager:8003
+            BACKEND_USER_PROFILE_URL: http://user-profile-manager:8004/users
+            BACKEND_USER_PROFILE_AUTH_URL: http://user-profile-manager:8004/auth
+            BACKEND_REALTIME_URL: http://realtime-monitor:8005
+            BACKEND_YTP_API_KEY: ${YTP_API_KEY:-}
+        ports:
+            - "3000:3000"
+        networks:
+            - ytp
+        depends_on:
+            - trip-planner
+            - trip-manager
+            - user-profile-manager
+            - realtime-monitor
+        restart: unless-stopped
+
+
+networks:
+    ytp:
+        driver: bridge
+
+volumes:
+    postgres_data:
+    trip_data:

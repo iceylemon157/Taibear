@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+RUN pip install --no-cache-dir \
+    fastapi \
+    uvicorn[standard] \
+    pydantic \
+    python-dotenv \
+    sqlalchemy==2.0.36 \
+    psycopg2-binary==2.9.10
+
+# Copy user_profile_manager (now self-contained with its own models.py)
+COPY user_profile_manager/ ./user_profile_manager/
+
+# This service uses bare imports (import config, from repository.xxx)
+# so WORKDIR must be inside the package.
+WORKDIR /app/user_profile_manager
+
+EXPOSE 8004
+
+CMD ["uvicorn", "main:build_app", "--factory", "--host", "0.0.0.0", "--port", "8004"]

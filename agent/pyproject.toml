@@ -1,0 +1,23 @@
+[project]
+name = "ytp-planning-agent"
+version = "0.3.0"
+description = "台北一日遊規劃 Agent — Gemini Search Grounding + Google Maps + ADK"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.135.3",
+    "folium>=0.20.0",
+    "google-adk>=1.28.1",
+    "google-generativeai==0.8.5",
+    "httpx>=0.28.1",
+    "psycopg2-binary==2.9.10",
+    "python-dotenv>=1.2.2",
+    "python-telegram-bot==21.6",
+    "sqlalchemy==2.0.36",
+    "uvicorn>=0.42.0",
+    "yt-dlp==2025.3.31",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
