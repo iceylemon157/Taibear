@@ -260,12 +260,12 @@ function ExtensionView({ onSwitch }: { onSwitch: () => void }) {
         style={{ background: CONIC, minHeight: 490 }}
       >
         <div className="flex-1 pt-2">
-          <h1 className="text-[76px] font-bold leading-tight text-white">訂房守門員</h1>
+          <h1 className="text-[76px] font-bold leading-tight text-[#141414]">訂房守門員</h1>
           <h1 className="text-[76px] font-bold leading-tight" style={{ color: "#fec728" }}>自己找，我幫你把關。</h1>
           <p className="mt-6 text-[17px] max-w-[540px]" style={{ color: "#8c8c8c" }}>瀏覽訂房網站時，Taibear 插件即時比對合法資料庫，提前揪出非法業者。</p>
           <div className="flex gap-4 mt-8">
             <button onClick={onSwitch} className="h-[52px] px-8 rounded-[13px] text-[15px] transition-colors hover:bg-black/5" style={{ border: "1.5px solid #616161", color: "#a6a6a6" }}>找合法住宿 →</button>
-            <button className="h-[52px] px-8 rounded-[13px] text-[#141414] text-[16px] font-semibold" style={{ background: "#fec728" }}>立即安裝插件</button>
+            <button onClick={() => window.open("https://www.booking.com/searchresults.html?ss=Taipei%2C+Taiwan", "_blank")} className="h-[52px] px-8 rounded-[13px] text-[#141414] text-[16px] font-semibold" style={{ background: "#fec728" }}>立即安裝插件</button>
           </div>
         </div>
         <BrowserMockup />
@@ -305,6 +305,7 @@ function HotelsView({ onSwitch, showExtensionBtn = true }: { onSwitch: () => voi
   const [savingHotelId, setSavingHotelId] = useState("");
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [searchSnapshot, setSearchSnapshot] = useState<SearchContextSnapshot | null>(null);
+  const [searchVersion, setSearchVersion] = useState(0);
 
   const searchSeqRef = useRef(0);
   const session = useMemo(() => getSession(), []);
@@ -402,6 +403,7 @@ function HotelsView({ onSwitch, showExtensionBtn = true }: { onSwitch: () => voi
     } finally {
       if (currentSeq === searchSeqRef.current) {
         setSearching(false);
+        setSearchVersion((v) => v + 1);
       }
     }
   }
@@ -439,7 +441,7 @@ function HotelsView({ onSwitch, showExtensionBtn = true }: { onSwitch: () => voi
         style={{ background: CONIC, minHeight: 320 }}
       >
         <div className="flex-1">
-          <h1 className="text-[42px] md:text-[76px] font-bold leading-tight text-white">安心住宿</h1>
+          <h1 className="text-[42px] md:text-[76px] font-bold leading-tight text-[#141414]">安心住宿</h1>
           <h1 className="text-[42px] md:text-[76px] font-bold leading-tight" style={{ color: "#ffd26a" }}>從這裡開始。</h1>
           <p className="mt-4 text-[15px] md:text-[17px] max-w-[540px]" style={{ color: "#8c8c8c" }}>Taibear 會呼叫後端 /api/search-hotels，使用 LLM 搜尋並排序最符合你的旅宿。</p>
           <div className="flex flex-wrap gap-3 mt-6">
@@ -569,9 +571,9 @@ function HotelsView({ onSwitch, showExtensionBtn = true }: { onSwitch: () => voi
 
               return (
                 <div
-                  key={hotel.id}
+                  key={`${hotel.id}-v${searchVersion}`}
                   className="flex flex-col md:flex-row md:items-start gap-4 md:gap-6 rounded-[20px] border bg-white px-4 md:px-6 py-4 md:py-5"
-                  style={{ borderColor: "#e0e0e0", boxShadow: "0px 4px 16px 0px rgba(0,0,0,0.04)" }}
+                  style={{ borderColor: "#e0e0e0", boxShadow: "0px 4px 16px 0px rgba(0,0,0,0.04)", animation: "cardIn 0.45s ease backwards", animationDelay: `${index * 60}ms` }}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
@@ -697,7 +699,18 @@ function HotelSearchStatusCard({ searchSnapshot }: { searchSnapshot: SearchConte
         border: "1.5px solid rgba(58,189,255,0.18)",
       }}
     >
-      <p className="text-[13px] font-semibold text-[#141414]">Taibear 正在搜尋旅宿中，已參考以下資料：</p>
+      <div className="flex items-center gap-2 mb-1">
+        <p className="text-[13px] font-semibold text-[#141414]">Taibear 正在搜尋旅宿中，已參考以下資料</p>
+        <span className="flex items-center gap-[3px] ml-1">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="inline-block w-[5px] h-[5px] rounded-full"
+              style={{ background: "#3abdff", animation: "pulseDot 1.2s ease-in-out infinite", animationDelay: `${i * 0.2}s` }}
+            />
+          ))}
+        </span>
+      </div>
       <div className="mt-1.5">
         <p className="text-[11px] leading-[16px] break-words" style={{ color: "#595959" }}>
           搜尋需求：{promptText}
@@ -734,6 +747,16 @@ export default function HotelsPage() {
 
   return (
     <>
+      <style>{`
+        @keyframes cardIn {
+          from { opacity: 0; transform: translateY(18px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulseDot {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50%       { transform: scale(1.6); opacity: 0.4; }
+        }
+      `}</style>
       {/* Mobile: always show hotels view, no extension promo */}
       <div className="block md:hidden">
         <HotelsView onSwitch={() => {}} showExtensionBtn={false} />

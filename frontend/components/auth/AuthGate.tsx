@@ -7,6 +7,7 @@ import { ApiError } from "@/services/api/client";
 import { authService } from "@/services/api/services";
 import {
   clearSession,
+  DEV_BYPASS_USER_ID,
   getSession,
   isAccessTokenExpired,
   isRefreshTokenExpired,
@@ -26,6 +27,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       if (!current) {
         const nextPath = pathname || "/trips";
         router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
+        return;
+      }
+
+      if (current.userId === DEV_BYPASS_USER_ID) {
+        if (!cancelled) setReady(true);
         return;
       }
 

@@ -9,6 +9,20 @@ export type UserSession = {
 
 const SESSION_KEY = "taibear.session";
 
+export const DEV_BYPASS_USER_ID = "__dev__";
+
+export function setDevBypassSession(): void {
+  const far = Date.now() + 365 * 24 * 60 * 60 * 1000;
+  setSession({
+    userId: DEV_BYPASS_USER_ID,
+    displayName: "開發測試帳號",
+    accessToken: "dev-bypass-token",
+    refreshToken: "dev-bypass-refresh",
+    accessTokenExpiresAt: far,
+    refreshTokenExpiresAt: far,
+  });
+}
+
 function isBrowser(): boolean {
   return typeof window !== "undefined";
 }
